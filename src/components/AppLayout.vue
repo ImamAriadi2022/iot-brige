@@ -262,66 +262,122 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
   display: block;
 }
 
+/* Logo area */
 .sidebar-logo {
-  padding: 20px 16px 24px;
+  padding: 24px 16px 20px;
   border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 .sidebar-logo a {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   text-decoration: none;
 }
 .logo-text {
-  font-size: 18px;
-  font-weight: 800;
+  font-size: 19px;
+  font-weight: 900;
   color: var(--color-white);
   letter-spacing: -0.5px;
+  line-height: 1.15;
 }
 .logo-gear {
   color: var(--color-accent);
   font-style: normal;
 }
 
+/* Nav list — no right padding so active item can reach sidebar edge */
 .sidebar-nav {
   flex: 1;
-  padding: 16px 10px;
+  padding: 20px 0 20px 12px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   overflow-y: auto;
+  overflow-x: visible;
 }
 
+/* Nav items — default state */
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  color: rgba(255,255,255,0.65);
-  font-weight: 500;
-  font-size: 14px;
-  transition: var(--transition);
-  text-decoration: none;
-}
-.nav-item:hover {
-  background: rgba(255,255,255,0.08);
-  color: var(--color-white);
-}
-.nav-item.active {
-  background: rgba(232, 107, 26, 0.15);
+  gap: 14px;
+  padding: 13px 16px 13px 16px;
+  border-radius: 12px;
   color: var(--color-accent);
   font-weight: 600;
+  font-size: 14.5px;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  position: relative;
+  margin-right: 0;
 }
+
+/* Icon always orange */
 .nav-item svg {
   flex-shrink: 0;
+  color: var(--color-accent);
+  transition: color 0.2s ease;
+}
+
+/* Hover */
+.nav-item:hover {
+  background: rgba(232, 107, 26, 0.12);
+  color: var(--color-accent);
+}
+
+/* ===== ACTIVE — connected tab effect ===== */
+.nav-item.active {
+  background: #f5f7fa;             /* matches --color-bg exactly */
+  color: var(--color-primary);
+  font-weight: 700;
+  border-radius: 16px 0 0 16px;   /* only left side rounded */
+  margin-right: 0;
+  z-index: 1;
+  overflow: visible;
+}
+.nav-item.active svg {
+  color: var(--color-accent);
+}
+.nav-item.active span {
+  color: var(--color-primary);
+}
+
+/* Top curved notch — creates smooth curve where sidebar meets active item top */
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border-bottom-right-radius: 16px;
+  box-shadow: 8px 8px 0 8px #f5f7fa;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Bottom curved notch — creates smooth curve where sidebar meets active item bottom */
+.nav-item.active::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 100%;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border-top-right-radius: 16px;
+  box-shadow: 8px -8px 0 8px #f5f7fa;
+  pointer-events: none;
+  z-index: 2;
 }
 
 .sidebar-footer {
-  padding: 16px;
+  padding: 16px 12px;
   font-size: 10px;
-  color: rgba(255,255,255,0.3);
+  color: rgba(255,255,255,0.25);
   text-align: center;
+  line-height: 1.5;
 }
 
 /* ===== MAIN ===== */
