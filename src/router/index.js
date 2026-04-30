@@ -6,6 +6,7 @@ import ForgotPasswordView from '../views/ForgotPasswordView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import PoolDetailView from '../views/PoolDetailView.vue'
 import NotifikasiView from '../views/NotifikasiView.vue'
+import PerangkatView from '../views/PerangkatView.vue'
 import PenggunaView from '../views/PenggunaView.vue'
 import OrganisasiView from '../views/OrganisasiView.vue'
 import PengaturanView from '../views/PengaturanView.vue'
@@ -20,6 +21,7 @@ const routes = [
   { path: '/dashboard', component: DashboardView, meta: { auth: true } },
   { path: '/dashboard/kolam/:id', component: PoolDetailView, meta: { auth: true } },
   { path: '/notifikasi', component: NotifikasiView, meta: { auth: true } },
+  { path: '/perangkat', component: PerangkatView, meta: { auth: true } },
   { path: '/pengguna', component: PenggunaView, meta: { auth: true } },
   { path: '/organisasi', component: OrganisasiView, meta: { auth: true } },
   { path: '/pengaturan', component: PengaturanView, meta: { auth: true } },
