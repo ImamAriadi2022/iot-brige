@@ -1,9 +1,10 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { login, saveSession } from '@/services/api.js'
 
 const router = useRouter()
-const email = ref('')
+const identity = ref('')
 const password = ref('')
 const showPassword = ref(false)
 const loading = ref(false)
@@ -11,18 +12,25 @@ const error = ref('')
 const success = ref(false)
 
 async function handleLogin() {
-  if (!email.value || !password.value) {
-    error.value = 'Harap isi email dan kata sandi.'
+  if (!identity.value || !password.value) {
+    error.value = 'Harap isi email/username dan kata sandi.'
     return
   }
   loading.value = true
   error.value = ''
-  // Simulate login
-  await new Promise(r => setTimeout(r, 800))
-  const user = { name: 'Mufita', email: email.value }
-  localStorage.setItem('iot_bridge_user', JSON.stringify(user))
-  loading.value = false
-  success.value = true
+  try {
+    const data = await login({ identity: identity.value, password: password.value })
+    // Simpan token & data user ke localStorage
+    saveSession({
+      token: data.token,
+      user: { id: data.user?.id, role: data.user?.role, email: identity.value },
+    })
+    success.value = true
+  } catch (err) {
+    error.value = err.message || 'Login gagal. Periksa kembali email dan kata sandi.'
+  } finally {
+    loading.value = false
+  }
 }
 
 function closePopup() {
@@ -68,15 +76,15 @@ function closePopup() {
 
         <form class="auth-form" @submit.prevent="handleLogin">
           <div class="form-group">
-            <label class="form-label">Alamat Email</label>
+            <label class="form-label">Email / Username / No. Handphone</label>
             <div class="input-wrap">
               <input
-                id="login-email"
-                v-model="email"
-                type="email"
+                id="login-identity"
+                v-model="identity"
+                type="text"
                 class="form-input"
-                placeholder="Masukan email pengguna"
-                autocomplete="email"
+                placeholder="Masukan email, username, atau no. HP"
+                autocomplete="username"
               />
               <span class="input-icon">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">

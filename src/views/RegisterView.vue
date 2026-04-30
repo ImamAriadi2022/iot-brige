@@ -1,31 +1,45 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { register } from '@/services/api.js'
 
 const router = useRouter()
-const form = ref({ name: '', email: '', org: '', personal: false, password: '' })
+const form = ref({ username: '', email: '', phone_number: '', password: '' })
 const showPassword = ref(false)
 const loading = ref(false)
 const error = ref('')
 const success = ref(false)
 
 async function handleRegister() {
-  if (!form.value.name || !form.value.email || !form.value.password) {
+  if (!form.value.username || !form.value.email || !form.value.password) {
     error.value = 'Harap lengkapi semua field yang wajib diisi.'
+    return
+  }
+  const pwRegex = /^[a-zA-Z0-9]{6,20}$/
+  if (!pwRegex.test(form.value.password)) {
+    error.value = 'Kata sandi harus 6–20 karakter alfanumerik tanpa spasi.'
     return
   }
   loading.value = true
   error.value = ''
-  await new Promise(r => setTimeout(r, 800))
-  const user = { name: form.value.name, email: form.value.email }
-  localStorage.setItem('iot_bridge_user', JSON.stringify(user))
-  loading.value = false
-  success.value = true
+  try {
+    await register({
+      username: form.value.username,
+      email: form.value.email,
+      phone_number: form.value.phone_number,
+      password: form.value.password,
+    })
+    success.value = true
+  } catch (err) {
+    error.value = err.message || 'Pendaftaran gagal. Silakan coba lagi.'
+  } finally {
+    loading.value = false
+  }
 }
 
 function closePopup() {
   success.value = false
-  router.push('/dashboard')
+  router.push('/masuk')
 }
 </script>
 
@@ -42,7 +56,7 @@ function closePopup() {
         <div class="popup-icon-wrap">
           <img src="@/assets/ceklis.png" alt="Berhasil" class="popup-icon-img" />
         </div>
-        <p class="popup-message">Pendaftaran berhasil! Akun Anda telah dibuat. Selamat bergabung di IoT Bridge.</p>
+        <p class="popup-message">Pendaftaran berhasil! Silakan cek email Anda untuk melakukan verifikasi akun sebelum login.</p>
       </div>
     </div>
   </Transition>
@@ -63,9 +77,9 @@ function closePopup() {
 
         <form class="auth-form" @submit.prevent="handleRegister">
           <div class="form-group">
-            <label class="form-label">Nama Pengguna</label>
+            <label class="form-label">Username <span style="color:var(--color-danger)">*</span></label>
             <div class="input-wrap">
-              <input id="reg-name" v-model="form.name" type="text" class="form-input" placeholder="Masukan nama pengguna"/>
+              <input id="reg-username" v-model="form.username" type="text" class="form-input" placeholder="Masukan username unik"/>
               <span class="input-icon">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                   <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
@@ -75,7 +89,7 @@ function closePopup() {
           </div>
 
           <div class="form-group">
-            <label class="form-label">Alamat Email</label>
+            <label class="form-label">Alamat Email <span style="color:var(--color-danger)">*</span></label>
             <div class="input-wrap">
               <input id="reg-email" v-model="form.email" type="email" class="form-input" placeholder="Masukan email pengguna"/>
               <span class="input-icon">
@@ -87,30 +101,21 @@ function closePopup() {
           </div>
 
           <div class="form-group">
-            <label class="form-label">Nama Organisasi</label>
+            <label class="form-label">Nomor Handphone</label>
             <div class="input-wrap">
-              <input id="reg-org" v-model="form.org" type="text" class="form-input" placeholder="Masukan nama organisasi"/>
+              <input id="reg-phone" v-model="form.phone_number" type="tel" class="form-input" placeholder="Contoh: 08123456789"/>
               <span class="input-icon">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                  <rect x="9" y="2" width="6" height="4" rx="1"/>
-                  <rect x="2" y="18" width="6" height="4" rx="1"/>
-                  <rect x="9" y="18" width="6" height="4" rx="1"/>
-                  <rect x="16" y="18" width="6" height="4" rx="1"/>
-                  <path d="M12 6v6M5 18v-4h14v4"/>
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.85a16 16 0 0 0 6.29 6.29l1.45-1.45a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
                 </svg>
               </span>
             </div>
           </div>
 
-          <div class="form-check">
-            <input id="reg-personal" v-model="form.personal" type="checkbox"/>
-            <label for="reg-personal">Silahkan ceklis jika akun untuk penggunaan pribadi</label>
-          </div>
-
           <div class="form-group">
-            <label class="form-label">Kata sandi</label>
+            <label class="form-label">Kata sandi <span style="color:var(--color-danger)">*</span></label>
             <div class="input-wrap">
-              <input id="reg-password" v-model="form.password" :type="showPassword ? 'text' : 'password'" class="form-input" placeholder="Masukan kata sandi"/>
+              <input id="reg-password" v-model="form.password" :type="showPassword ? 'text' : 'password'" class="form-input" placeholder="6–20 karakter alfanumerik"/>
               <button type="button" class="input-icon clickable" @click="showPassword = !showPassword">
                 <svg v-if="!showPassword" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                   <rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>

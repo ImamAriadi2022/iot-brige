@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { forgotPassword } from '@/services/api.js'
 
 const router = useRouter()
 const contact = ref('')
@@ -10,14 +11,19 @@ const error = ref('')
 
 async function handleSubmit() {
   if (!contact.value.trim()) {
-    error.value = 'Harap isi email atau nomor handphone.'
+    error.value = 'Harap isi alamat email Anda.'
     return
   }
   error.value = ''
   loading.value = true
-  await new Promise(r => setTimeout(r, 900))
-  loading.value = false
-  success.value = true
+  try {
+    await forgotPassword({ email: contact.value.trim() })
+    success.value = true
+  } catch (err) {
+    error.value = err.message || 'Gagal mengirim email reset. Silakan coba lagi.'
+  } finally {
+    loading.value = false
+  }
 }
 
 function closePopup() {
@@ -71,14 +77,14 @@ function closePopup() {
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="forgot-contact">Email/No.Handphone pengguna</label>
+            <label class="form-label" for="forgot-contact">Alamat Email</label>
             <div class="input-wrap">
               <input
                 id="forgot-contact"
                 v-model="contact"
-                type="text"
+                type="email"
                 class="form-input"
-                placeholder="Masukan email/no.handphone pengguna"
+                placeholder="Masukan alamat email terdaftar"
                 autocomplete="email"
               />
               <span class="input-icon">
