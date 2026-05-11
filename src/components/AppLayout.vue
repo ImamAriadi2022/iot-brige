@@ -1,6 +1,7 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { clearSession } from '@/services/api.js'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 const props = defineProps({
   pageTitle: { type: String, default: 'Dashboard' }
@@ -19,11 +20,11 @@ const user = computed(() => {
 
 const navItems = [
   { label: 'Dashboard', path: '/dashboard', icon: 'dashboard' },
+  { label: 'Notifikasi', path: '/notifikasi', icon: 'notif' },
   { label: 'Perangkat', path: '/perangkat', icon: 'device' },
-  { label: 'Pengguna', path: '/pengguna', icon: 'users' },
   { label: 'Organisasi', path: '/organisasi', icon: 'org' },
-  { label: 'Statistika', path: '/statistika', icon: 'stats' },
   { label: 'Pengaturan', path: '/pengaturan', icon: 'settings' },
+  { label: 'Pengguna', path: '/pengguna', icon: 'users' },
 ]
 
 function isActive(path) {
@@ -53,8 +54,9 @@ function confirmLogout() {
 }
 
 function logout() {
-  localStorage.removeItem('iot_bridge_user')
-  router.push('/masuk')
+  clearSession()
+  showLogoutModal.value = false
+  router.replace('/masuk')
 }
 
 function handleOutsideClick(e) {
@@ -101,6 +103,11 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
           :class="{ active: isActive(item.path) }"
           @click="closeSidebar"
         >
+                    <!-- Notification Icon -->
+                    <svg v-if="item.icon === 'notif'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                      <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                    </svg>
           <!-- Dashboard Icon -->
           <svg v-if="item.icon === 'dashboard'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="7" height="7" rx="1"/>
@@ -143,6 +150,17 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
         </RouterLink>
       </nav>
 
+      <div class="sidebar-actions">
+        <button class="nav-item logout-btn" @click="confirmLogout">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          <span>Keluar akun</span>
+        </button>
+      </div>
+
       <div class="sidebar-footer">
         <span>© 2025 Teknik Informatika Universitas Lampung</span>
       </div>
@@ -161,12 +179,6 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
           <h1 class="page-title">{{ pageTitle }}</h1>
         </div>
         <div class="topbar-right">
-          <RouterLink to="/notifikasi" class="notif-btn" aria-label="Notifikasi">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-            </svg>
-          </RouterLink>
           <div class="user-menu-wrap" @click.stop="toggleUserMenu">
             <button class="user-btn">
               <div class="user-avatar">{{ user.name?.charAt(0)?.toUpperCase() || 'U' }}</div>
@@ -288,10 +300,10 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
 /* Nav list — no right padding so active item can reach sidebar edge */
 .sidebar-nav {
   flex: 1;
-  padding: 20px 0 20px 12px;
+  padding: 20px 12px 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
   overflow-y: auto;
   overflow-x: visible;
 }
@@ -301,15 +313,14 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 13px 16px 13px 16px;
-  border-radius: 12px;
+  padding: 12px 18px;
+  border-radius: 999px;
   color: var(--color-accent);
   font-weight: 600;
   font-size: 14.5px;
   transition: all 0.2s ease;
   text-decoration: none;
   position: relative;
-  margin-right: 0;
 }
 
 /* Icon always orange */
@@ -321,55 +332,35 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
 
 /* Hover */
 .nav-item:hover {
-  background: rgba(232, 107, 26, 0.12);
+  background: rgba(255, 255, 255, 0.08);
   color: var(--color-accent);
 }
 
 /* ===== ACTIVE — connected tab effect ===== */
 .nav-item.active {
-  background: #f5f7fa;             /* matches --color-bg exactly */
-  color: var(--color-primary);
+  background: #2a4f7c;
+  color: white;
   font-weight: 700;
-  border-radius: 16px 0 0 16px;   /* only left side rounded */
-  margin-right: 0;
-  z-index: 1;
-  overflow: visible;
 }
 .nav-item.active svg {
-  color: var(--color-accent);
+  color: white;
 }
 .nav-item.active span {
-  color: var(--color-primary);
+  color: white;
 }
 
-/* Top curved notch — creates smooth curve where sidebar meets active item top */
-.nav-item.active::before {
-  content: '';
-  position: absolute;
-  right: 0;
-  bottom: 100%;
-  width: 24px;
-  height: 24px;
-  background: transparent;
-  border-bottom-right-radius: 16px;
-  box-shadow: 8px 8px 0 8px #f5f7fa;
-  pointer-events: none;
-  z-index: 2;
+.sidebar-actions {
+  padding: 0 12px 12px;
 }
-
-/* Bottom curved notch — creates smooth curve where sidebar meets active item bottom */
-.nav-item.active::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  top: 100%;
-  width: 24px;
-  height: 24px;
+.logout-btn {
+  width: 100%;
+  justify-content: flex-start;
+  color: var(--color-accent);
   background: transparent;
-  border-top-right-radius: 16px;
-  box-shadow: 8px -8px 0 8px #f5f7fa;
-  pointer-events: none;
-  z-index: 2;
+  border: none;
+}
+.logout-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .sidebar-footer {

@@ -1,4 +1,5 @@
 <script setup>
+import { updatePassword } from '@/services/api.js'
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
@@ -25,11 +26,19 @@ async function handleSave() {
     return
   }
   saving.value = true
-  await new Promise(r => setTimeout(r, 900))
-  saving.value = false
-  success.value = true
-  form.value = { current: '', newPass: '', confirm: '' }
-  setTimeout(() => { success.value = false }, 3000)
+  try {
+    await updatePassword({
+      old_password: form.value.current,
+      new_password: form.value.newPass,
+    })
+    success.value = true
+    form.value = { current: '', newPass: '', confirm: '' }
+    setTimeout(() => { success.value = false }, 3000)
+  } catch (err) {
+    error.value = err?.message || 'Gagal mengubah kata sandi.'
+  } finally {
+    saving.value = false
+  }
 }
 </script>
 

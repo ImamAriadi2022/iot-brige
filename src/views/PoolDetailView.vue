@@ -1,94 +1,93 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import {
+    ensureOrganizationId,
+    getWidgetBoxList,
+    unwrapApiList,
+    upsertWidgetBoxes,
+} from '@/services/api.js'
+import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
 
-const route = useRoute()
 const router = useRouter()
+const route = useRoute()
+const widgets = ref([])
+const showAddModal = ref(false)
+const loading = ref(false)
+const error = ref('')
+const orgId = ref(null)
+const deviceId = ref(route.params.id)
 
-const poolData = {
-  'kolam-a': { name: 'Kolam A – RAS', suhu: 30.0, ph: 6.5, amonia: 0.01, tds: 300 },
-  'kolam-b': { name: 'Kolam B – RAS', suhu: 28.5, ph: 7.0, amonia: 0.05, tds: 280 },
-  'kolam-c': { name: 'Kolam C – Non RAS', suhu: 27.0, ph: 6.8, amonia: 0.02, tds: 350 },
-  'kolam-d': { name: 'Kolam D – Non RAS', suhu: 29.0, ph: 6.3, amonia: 0.08, tds: 400 },
+const newWidget = ref({
+  nama: '',
+  pin: '',
+  satuan: '',
+  minValue: '',
+  maxValue: '',
+  defaultValue: '',
+})
+
+function mapWidget(w) {
+  return {
+    id: w?.id || w?.widget_box_id || w?.widgetBoxId || w?._id,
+    nama: w?.name || w?.nama || w?.label || 'Widget',
+    pin: w?.pin || w?.pin_number || w?.pinNumber || '- ',
+    satuan: w?.unit || w?.satuan || w?.unit_name || w?.unitName || '',
+    minValue: w?.min_value ?? w?.minValue ?? w?.min ?? '',
+    maxValue: w?.max_value ?? w?.maxValue ?? w?.max ?? '',
+    defaultValue: w?.default_value ?? w?.defaultValue ?? w?.default ?? '',
+  }
 }
 
-const pool = computed(() => poolData[route.params.id] || poolData['kolam-a'])
-const pageTitle = computed(() => pool.value.name)
-
-// Gauge helper
-function gaugeArc(value, min, max, radius = 44) {
-  const pct = Math.max(0, Math.min(1, (value - min) / (max - min)))
-  const angle = -210 + pct * 240
-  const rad = (angle * Math.PI) / 180
-  const cx = 60, cy = 65
-  const x = cx + radius * Math.cos(rad)
-  const y = cy + radius * Math.sin(rad)
-  return { x: x.toFixed(2), y: y.toFixed(2) }
+async function loadWidgets() {
+  loading.value = true
+  error.value = ''
+  try {
+    orgId.value = await ensureOrganizationId()
+    if (!orgId.value || !deviceId.value) {
+      widgets.value = []
+      error.value = 'Perangkat tidak ditemukan.'
+      return
+    }
+    const data = await getWidgetBoxList(orgId.value, deviceId.value)
+    const list = unwrapApiList(data)
+    widgets.value = list.map(mapWidget).filter(w => w.id)
+  } catch (err) {
+    error.value = err?.message || 'Gagal memuat widget.'
+  } finally {
+    loading.value = false
+  }
 }
 
-function gaugePath(value, min, max) {
-  const startRad = (-210 * Math.PI) / 180
-  const pct = Math.max(0, Math.min(1, (value - min) / (max - min)))
-  const endAngle = -210 + pct * 240
-  const endRad = (endAngle * Math.PI) / 180
-  const r = 44
-  const cx = 60, cy = 65
-  const x1 = cx + r * Math.cos(startRad)
-  const y1 = cy + r * Math.sin(startRad)
-  const x2 = cx + r * Math.cos(endRad)
-  const y2 = cy + r * Math.sin(endRad)
-  const largeArc = pct * 240 > 180 ? 1 : 0
-  return `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${largeArc} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`
+async function addWidget() {
+  if (!newWidget.value.nama || !newWidget.value.pin) return
+  if (!orgId.value || !deviceId.value) {
+    error.value = 'Perangkat tidak ditemukan.'
+    return
+  }
+  try {
+    await upsertWidgetBoxes(orgId.value, deviceId.value, {
+      name: newWidget.value.nama,
+      pin: newWidget.value.pin,
+      unit: newWidget.value.satuan,
+      min_value: newWidget.value.minValue,
+      max_value: newWidget.value.maxValue,
+      default_value: newWidget.value.defaultValue,
+    })
+    newWidget.value = { nama: '', pin: '', satuan: '', minValue: '', maxValue: '', defaultValue: '' }
+    showAddModal.value = false
+    await loadWidgets()
+  } catch (err) {
+    error.value = err?.message || 'Gagal menambahkan widget.'
+  }
 }
 
-const metrics = computed(() => [
-  {
-    key: 'suhu',
-    label: 'Suhu',
-    value: pool.value.suhu,
-    unit: '°C',
-    min: 0, max: 50,
-    color: '#5b9da8',
-    bgColor: '#5b9da8',
-    iconPath: 'M12 2C10.34 2 9 3.34 9 5v8.53C7.5 14.5 7 15.94 7 17.5 7 20.54 9.24 23 12 23s5-2.46 5-5.5c0-1.56-.5-3-2-4V5c0-1.66-1.34-3-3-3zm0 18c-1.66 0-3-1.12-3-2.5 0-.64.24-1.23.66-1.68l.34-.38V5c0-.55.45-1 1-1s1 .45 1 1v10.44l.34.38c.42.45.66 1.04.66 1.68 0 1.38-1.34 2.5-3 2.5z'
-  },
-  {
-    key: 'ph',
-    label: 'Tingkat Keasaman (pH)',
-    value: pool.value.ph,
-    unit: '',
-    min: 0, max: 14,
-    color: '#5b9da8',
-    bgColor: '#5b9da8',
-    isText: true
-  },
-  {
-    key: 'amonia',
-    label: 'Kadar Gas Amonia',
-    value: pool.value.amonia,
-    unit: 'PPM',
-    min: 0, max: 100,
-    color: '#c8844a',
-    bgColor: '#c8844a',
-    isFlame: true
-  },
-  {
-    key: 'tds',
-    label: 'Padatan Terlarut Air (TDS)',
-    value: pool.value.tds,
-    unit: 'PPM',
-    min: 0, max: 1500,
-    color: '#8b6347',
-    bgColor: '#8b6347',
-    isDrop: true
-  },
-])
+onMounted(loadWidgets)
 </script>
 
 <template>
-  <AppLayout :page-title="pageTitle">
-    <div class="pool-detail">
+  <AppLayout page-title="Widget Box">
+    <div class="widget-page">
       <button class="back-btn" @click="router.push('/dashboard')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M19 12H5M12 19l-7-7 7-7"/>
@@ -96,80 +95,57 @@ const metrics = computed(() => [
         Kembali
       </button>
 
-      <div class="metrics-grid">
-        <div
-          v-for="m in metrics"
-          :key="m.key"
-          class="metric-card"
-          :style="{ background: m.bgColor }"
-        >
-          <div class="metric-header">
-            <!-- Temperature icon -->
-            <svg v-if="m.key==='suhu'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8">
-              <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
-            </svg>
-            <!-- pH icon -->
-            <svg v-if="m.key==='ph'" width="28" height="28" viewBox="0 0 24 24" fill="white">
-              <text x="2" y="18" font-size="13" font-weight="800" font-family="Inter" fill="white">PH</text>
-            </svg>
-            <!-- Flame icon -->
-            <svg v-if="m.key==='amonia'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8">
-              <path d="M8.5 14.5A5 5 0 1 0 12 6c0 2-1.5 3-2 4.5-.6 1.7.5 4 .5 4z"/>
-              <path d="M12 19a3 3 0 0 0 3-3c0-1.5-1.5-2.5-3-4-1.5 1.5-3 2.5-3 4a3 3 0 0 0 3 3z"/>
-            </svg>
-            <!-- Drop icon -->
-            <svg v-if="m.key==='tds'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8">
-              <path d="M12 2C6.5 11 4 15 4 17a8 8 0 0 0 16 0c0-2-2.5-6-8-15z"/>
-            </svg>
-            <span class="metric-label">{{ m.label }}</span>
-          </div>
-
-          <div class="gauge-wrap">
-            <svg class="gauge-svg" viewBox="0 0 120 80">
-              <!-- Track arc -->
-              <path
-                d="M 16.36 65 A 44 44 0 1 1 103.64 65"
-                fill="none"
-                stroke="rgba(255,255,255,0.25)"
-                stroke-width="8"
-                stroke-linecap="round"
-              />
-              <!-- Value arc -->
-              <path
-                :d="gaugePath(m.value, m.min, m.max)"
-                fill="none"
-                stroke="white"
-                stroke-width="8"
-                stroke-linecap="round"
-              />
-              <!-- Needle dot -->
-              <circle
-                :cx="gaugeArc(m.value, m.min, m.max).x"
-                :cy="gaugeArc(m.value, m.min, m.max).y"
-                r="5"
-                fill="#1e3a5f"
-              />
-            </svg>
-
-            <div class="gauge-value">
-              <span class="val-num">{{ m.value }}</span>
-              <span class="val-unit">{{ m.unit }}</span>
-            </div>
-
-            <div class="gauge-scale">
-              <span>{{ m.min }}</span>
-              <span>{{ m.max }}</span>
-            </div>
-          </div>
+      <div class="widget-list">
+        <div v-if="error" class="widget-empty error">{{ error }}</div>
+        <div v-else-if="loading" class="widget-empty">Memuat widget...</div>
+        <div v-else-if="widgets.length === 0" class="widget-empty">Belum ada widget.</div>
+        <div v-for="w in widgets" :key="w.id" class="widget-card">
+          <div class="widget-title">{{ w.nama }}</div>
+          <div class="widget-meta">Pin: {{ w.pin }} | Satuan: {{ w.satuan || '-' }}</div>
+          <div class="widget-range">Min: {{ w.minValue || '-' }} | Max: {{ w.maxValue || '-' }} | Default: {{ w.defaultValue || '-' }}</div>
         </div>
       </div>
+
+      <button class="widget-fab" @click="showAddModal = true" title="Tambah Widget">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+
+      <Transition name="modal">
+        <div v-if="showAddModal" class="modal-overlay" @click.self="showAddModal = false">
+          <div class="modal-box">
+            <div class="modal-head">
+              <h3>Tambah Widget</h3>
+            </div>
+            <form class="modal-form" @submit.prevent="addWidget">
+              <input v-model="newWidget.nama" class="form-input" type="text" placeholder="Nama Widget" required />
+              <input v-model="newWidget.pin" class="form-input" type="text" placeholder="Pin" required />
+              <input v-model="newWidget.satuan" class="form-input" type="text" placeholder="Satuan" />
+              <input v-model="newWidget.minValue" class="form-input" type="number" placeholder="Min Value" />
+              <input v-model="newWidget.maxValue" class="form-input" type="number" placeholder="Max Value" />
+              <input v-model="newWidget.defaultValue" class="form-input" type="number" placeholder="Default Value" />
+              <div class="modal-actions">
+                <button type="button" class="btn-text" @click="showAddModal = false">Tutup</button>
+                <button type="submit" class="btn-primary">Tambah</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </Transition>
     </div>
   </AppLayout>
 </template>
 
 <style scoped>
-.pool-detail { display: flex; flex-direction: column; gap: 20px; }
-
+.widget-page {
+  position: relative;
+  min-height: calc(100vh - var(--header-height) - 48px);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
 .back-btn {
   display: inline-flex; align-items: center; gap: 8px;
   background: none; border: none; cursor: pointer;
@@ -179,86 +155,108 @@ const metrics = computed(() => [
 }
 .back-btn:hover { color: var(--color-accent); }
 
-.metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-}
-
-.metric-card {
-  border-radius: var(--radius-lg);
-  padding: 24px;
-  color: white;
+.widget-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  min-height: 260px;
-  transition: var(--transition);
+  gap: 14px;
 }
-.metric-card:hover {
-  transform: translateY(-2px);
+.widget-empty {
+  text-align: center;
+  color: var(--color-text-light);
+  padding: 24px 0;
+}
+.widget-empty.error { color: var(--color-danger); }
+.widget-card {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: 20px 22px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.widget-title { font-size: 16px; font-weight: 800; color: var(--color-text); }
+.widget-meta, .widget-range { font-size: 13px; color: var(--color-text-muted); }
+
+.widget-fab {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+  cursor: pointer;
+  transition: var(--transition);
+  z-index: 50;
+}
+.widget-fab:hover { transform: translateY(-2px); }
+
+/* Modal */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 300; padding: 16px;
+}
+.modal-box {
+  background: white; border-radius: var(--radius-lg);
+  padding: 28px; width: 100%; max-width: 480px;
   box-shadow: var(--shadow-lg);
 }
-
-.metric-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.metric-label {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-
-.gauge-wrap {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: relative;
-}
-.gauge-svg {
-  width: 100%;
-  max-width: 180px;
-}
-.gauge-value {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-  margin-top: -16px;
-}
-.val-num {
-  font-size: 40px;
-  font-weight: 800;
-  color: white;
-  line-height: 1;
-}
-.val-unit {
+.modal-head { margin-bottom: 18px; }
+.modal-head h3 { font-size: 18px; font-weight: 800; color: var(--color-text); }
+.modal-form { display: flex; flex-direction: column; gap: 12px; }
+.form-input {
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--color-border);
   font-size: 14px;
-  font-weight: 600;
-  color: rgba(255,255,255,0.8);
+  color: var(--color-text);
+  background: white;
+  outline: none;
+  transition: var(--transition);
 }
-.gauge-scale {
+.form-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(30,58,95,0.08);
+}
+.modal-actions {
   display: flex;
-  justify-content: space-between;
-  width: 100%;
-  max-width: 180px;
-  margin-top: 8px;
-  font-size: 12px;
-  color: rgba(255,255,255,0.7);
-  font-weight: 600;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 4px;
 }
+.btn-text {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-primary {
+  padding: 10px 22px;
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: white;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.btn-primary:hover { background: var(--color-primary-dark); }
+
+.modal-enter-active, .modal-leave-active { transition: all 0.25s ease; }
+.modal-enter-from, .modal-leave-to { opacity: 0; }
+.modal-enter-from .modal-box, .modal-leave-to .modal-box { transform: scale(0.96); }
 
 @media (max-width: 768px) {
-  .metrics-grid {
-    grid-template-columns: 1fr;
-  }
-  .metric-card { min-height: 220px; }
-  .val-num { font-size: 32px; }
-}
-@media (min-width: 769px) and (max-width: 1024px) {
-  .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+  .widget-fab { right: 20px; bottom: 20px; }
 }
 </style>

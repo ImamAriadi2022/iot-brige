@@ -1,24 +1,62 @@
 <script setup>
+import { ensureOrganizationId, searchDevices, unwrapApiList } from '@/services/api.js'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
 
 const router = useRouter()
+const pools = ref([])
+const loading = ref(false)
+const error = ref('')
 
-const pools = [
-  { id: 'kolam-a', name: 'KOLAM A – RAS', type: 'ras' },
-  { id: 'kolam-b', name: 'KOLAM B – RAS', type: 'ras' },
-  { id: 'kolam-c', name: 'KOLAM C – Non RAS', type: 'non-ras' },
-  { id: 'kolam-d', name: 'KOLAM D – Non RAS', type: 'non-ras' },
-]
+function detectType(name) {
+  const lower = String(name || '').toLowerCase()
+  return lower.includes('ras') ? 'ras' : 'non-ras'
+}
+
+function mapDevice(d) {
+  const id = d?.id || d?.device_id || d?.deviceId || d?._id
+  const name = d?.name || d?.nama || d?.device_name || 'Perangkat'
+  return { id: String(id), name: name.toUpperCase(), type: detectType(name) }
+}
+
+async function loadDevices() {
+  loading.value = true
+  error.value = ''
+  try {
+    const orgId = await ensureOrganizationId()
+    if (!orgId) {
+      pools.value = []
+      error.value = 'Organisasi belum tersedia untuk akun ini.'
+      return
+    }
+    const data = await searchDevices(orgId)
+    const list = unwrapApiList(data)
+    pools.value = list.map(mapDevice).filter(p => p.id)
+  } catch (err) {
+    if (err?.status === 403 || /verif/i.test(String(err?.message || ''))) {
+      error.value = 'Organisasi belum diverifikasi. Akses tidak diizinkan.'
+    } else {
+      error.value = err?.message || 'Gagal memuat daftar perangkat.'
+    }
+  } finally {
+    loading.value = false
+  }
+}
 
 function goToPool(pool) {
   router.push(`/dashboard/kolam/${pool.id}`)
 }
+
+onMounted(loadDevices)
 </script>
 
 <template>
   <AppLayout page-title="Dashboard">
-    <div class="dashboard-grid">
+    <div v-if="error" class="data-error">{{ error }}</div>
+    <div v-else-if="loading" class="data-loading">Memuat perangkat...</div>
+    <div v-else-if="pools.length === 0" class="data-empty">Belum ada perangkat.</div>
+    <div v-else class="dashboard-grid">
       <div
         v-for="pool in pools"
         :key="pool.id"
@@ -53,6 +91,17 @@ function goToPool(pool) {
   grid-template-columns: repeat(2, 1fr);
   gap: 24px;
 }
+
+.data-error,
+.data-loading,
+.data-empty {
+  padding: 24px;
+  background: white;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  color: var(--color-text-muted);
+}
+.data-error { color: var(--color-danger); }
 
 .pool-card {
   background: var(--color-card-blue);

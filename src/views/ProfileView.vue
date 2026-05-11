@@ -1,26 +1,28 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { getProfile, updateProfile } from '@/services/api.js'
+import { computed, onMounted, ref } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 
 const user = computed(() => {
   const u = localStorage.getItem('iot_bridge_user')
-  return u ? JSON.parse(u) : { name: 'Mufita', email: 'halimah.mufita@gmail.com' }
+  return u ? JSON.parse(u) : { name: 'BillValentinov', email: '' }
 })
 
 const form = ref({
-  username: user.value.name || 'Mufita',
-  namaLengkap: user.value.name || 'Mufita',
-  email: user.value.email || 'halimah.mufita@gmail.com',
-  phone: '0895353304313',
+  nama: user.value.name || 'BillValentinov',
+  phone: user.value.phone || '085691496242',
 })
 
 const avatarPreview = ref(null)
+const avatarFile = ref(null)
 const saving = ref(false)
 const saved = ref(false)
+const error = ref('')
 
 function handleAvatarChange(e) {
   const file = e.target.files[0]
   if (!file) return
+  avatarFile.value = file
   const reader = new FileReader()
   reader.onload = (ev) => { avatarPreview.value = ev.target.result }
   reader.readAsDataURL(file)
@@ -28,51 +30,61 @@ function handleAvatarChange(e) {
 
 async function handleSave() {
   saving.value = true
-  await new Promise(r => setTimeout(r, 900))
-  const updated = { name: form.value.namaLengkap, email: form.value.email }
-  localStorage.setItem('iot_bridge_user', JSON.stringify(updated))
-  saving.value = false
-  saved.value = true
-  setTimeout(() => { saved.value = false }, 2500)
+  error.value = ''
+  try {
+    const formData = new FormData()
+    formData.append('username', form.value.nama)
+    formData.append('phone_number', form.value.phone)
+    if (avatarFile.value) formData.append('avatar', avatarFile.value)
+    const updated = await updateProfile(formData)
+    const nextUser = {
+      ...user.value,
+      name: updated?.username || form.value.nama,
+      phone: updated?.phone_number || form.value.phone,
+      email: updated?.email || user.value.email,
+    }
+    localStorage.setItem('iot_bridge_user', JSON.stringify(nextUser))
+    saved.value = true
+    setTimeout(() => { saved.value = false }, 2500)
+  } catch (err) {
+    error.value = err?.message || 'Gagal memperbarui profil.'
+  } finally {
+    saving.value = false
+  }
 }
+
+async function loadProfile() {
+  error.value = ''
+  try {
+    const data = await getProfile()
+    form.value.nama = data?.username || data?.name || form.value.nama
+    form.value.phone = data?.phone_number || data?.phone || form.value.phone
+    avatarPreview.value = data?.avatar_url || data?.avatar || avatarPreview.value
+  } catch (err) {
+    error.value = err?.message || 'Gagal memuat profil.'
+  }
+}
+
+onMounted(loadProfile)
 </script>
 
 <template>
-  <AppLayout page-title="Profile">
+  <AppLayout page-title="Profil">
     <div class="profile-page">
       <div class="profile-card">
-        <!-- Avatar -->
         <div class="avatar-section">
-          <div class="avatar-wrap">
+          <label class="avatar-picker" for="avatar-input">
             <img v-if="avatarPreview" :src="avatarPreview" alt="Avatar" class="avatar-img"/>
-            <div v-else class="avatar-placeholder">
-              {{ form.namaLengkap?.charAt(0)?.toUpperCase() || 'U' }}
-            </div>
-            <label class="avatar-camera" for="avatar-input" title="Ubah foto">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                <circle cx="12" cy="13" r="4"/>
-              </svg>
-            </label>
-            <input id="avatar-input" type="file" accept="image/*" style="display:none" @change="handleAvatarChange"/>
-          </div>
+            <span v-else class="avatar-text">Pilih Foto</span>
+          </label>
+          <input id="avatar-input" class="sr-only" type="file" accept="image/*" @change="handleAvatarChange"/>
         </div>
 
-        <!-- Form -->
         <div class="profile-form">
+          <div v-if="error" class="form-error">{{ error }}</div>
           <div class="form-group">
             <label class="form-label">Nama Pengguna<span class="required">*</span></label>
-            <input v-model="form.username" type="text" class="form-input"/>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Nama Lengkap<span class="required">*</span></label>
-            <input v-model="form.namaLengkap" type="text" class="form-input"/>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Alamat Email<span class="required">*</span></label>
-            <input v-model="form.email" type="email" class="form-input"/>
+            <input v-model="form.nama" type="text" class="form-input"/>
           </div>
 
           <div class="form-group">
@@ -101,58 +113,44 @@ async function handleSave() {
 </template>
 
 <style scoped>
-.profile-page { display: flex; justify-content: flex-start; }
+.profile-page { display: flex; justify-content: center; }
 .profile-card {
   background: white;
   border-radius: var(--radius-lg);
-  padding: 40px;
+  padding: 36px 32px;
   box-shadow: var(--shadow-sm);
   display: flex;
-  gap: 48px;
-  align-items: flex-start;
+  gap: 36px;
+  align-items: center;
   width: 100%;
-  max-width: 800px;
+  max-width: 720px;
 }
 
 /* Avatar */
 .avatar-section { flex-shrink: 0; }
-.avatar-wrap {
-  position: relative;
-  width: 180px;
-  height: 180px;
-}
-.avatar-img, .avatar-placeholder {
+.avatar-picker {
   width: 180px;
   height: 180px;
   border-radius: 50%;
-  object-fit: cover;
-}
-.avatar-placeholder {
-  background: var(--color-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 64px;
-  font-weight: 800;
-  color: white;
-}
-.avatar-camera {
-  position: absolute;
-  bottom: 8px;
-  right: 8px;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: #1e3a5f;
+  background: #e5e7eb;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: white;
   transition: var(--transition);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  overflow: hidden;
 }
-.avatar-camera:hover { background: var(--color-accent); }
+.avatar-picker:hover { background: #d1d5db; }
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.avatar-text {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
 
 /* Form */
 .profile-form {
@@ -178,11 +176,20 @@ async function handleSave() {
 }
 .form-input:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(30,58,95,0.08); }
 
-.save-row { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 8px; }
+.form-error {
+  padding: 10px 14px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--color-danger);
+}
+
+.save-row { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 6px; }
 .saved-msg { display: flex; align-items: center; gap: 6px; color: var(--color-success); font-size: 13px; font-weight: 600; }
 .btn-primary {
-  padding: 10px 28px; background: var(--color-primary); color: white;
-  border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 700;
+  padding: 12px 28px; background: var(--color-primary); color: white;
+  border: none; border-radius: var(--radius-md); font-size: 15px; font-weight: 700;
   cursor: pointer; transition: var(--transition); display: flex; align-items: center; gap: 8px;
 }
 .btn-primary:hover:not(:disabled) { background: var(--color-primary-dark); }

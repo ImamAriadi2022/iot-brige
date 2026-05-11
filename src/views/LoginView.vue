@@ -1,7 +1,7 @@
 <script setup>
+import { login, saveSession, setActiveOrganizationId } from '@/services/api.js'
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { login, saveSession } from '@/services/api.js'
 
 const router = useRouter()
 const identity = ref('')
@@ -21,10 +21,22 @@ async function handleLogin() {
   try {
     const data = await login({ identity: identity.value, password: password.value })
     // Simpan token & data user ke localStorage
-    saveSession({
-      token: data.token,
-      user: { id: data.user?.id, role: data.user?.role, email: identity.value },
-    })
+    // `login()` sekarang menormalisasi respons dan mengembalikan { token, user, raw }
+    saveSession({ token: data.token, user: data.user || { id: data.raw?.user?.id, role: data.raw?.user?.role, email: identity.value } })
+    // Jika backend mengembalikan organization id, simpan sebagai organisasi aktif
+    const orgId = data?.user?.organization_id || data?.user?.organizationId || data?.raw?.organization_id || data?.raw?.organizationId || data?.raw?.data?.organization_id || data?.raw?.data?.organizationId
+    if (orgId) setActiveOrganizationId(String(orgId))
+
+    // Debug: tampilkan token ter-masked dan orgId untuk membandingkan dengan mobile
+    try {
+      const t = localStorage.getItem('iot_bridge_token') || ''
+      const masked = t ? `${t.slice(0,8)}...${t.slice(-8)}` : '<no-token>'
+      // eslint-disable-next-line no-console
+      console.info('[LOGIN] token', masked, 'orgId', orgId)
+    } catch (e) {
+      // ignore
+    }
+
     success.value = true
   } catch (err) {
     error.value = err.message || 'Login gagal. Periksa kembali email dan kata sandi.'

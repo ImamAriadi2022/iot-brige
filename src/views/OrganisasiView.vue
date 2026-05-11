@@ -1,5 +1,6 @@
 <script setup>
-import { ref } from 'vue'
+import { ensureOrganizationId, getOrganizationProfile, updateOrganizationProfile } from '@/services/api.js'
+import { onMounted, ref } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 
 const form = ref({
@@ -12,8 +13,11 @@ const form = ref({
 })
 const charCount = ref(0)
 const logoPreview = ref(null)
+const logoFile = ref(null)
 const saving = ref(false)
 const saved = ref(false)
+const error = ref('')
+const organizationId = ref(null)
 
 function handleDeskripsi(e) {
   charCount.value = e.target.value.length
@@ -26,26 +30,72 @@ function handleLogoDrop(e) {
 }
 
 function previewLogo(file) {
+  logoFile.value = file
   const reader = new FileReader()
   reader.onload = (ev) => { logoPreview.value = ev.target.result }
   reader.readAsDataURL(file)
 }
 
 async function handleSave() {
+  if (!organizationId.value) return
   saving.value = true
-  await new Promise(r => setTimeout(r, 900))
-  saving.value = false
-  saved.value = true
-  setTimeout(() => { saved.value = false }, 2500)
+  error.value = ''
+  try {
+    await updateOrganizationProfile(organizationId.value, {
+      name: form.value.nama,
+      description: form.value.deskripsi,
+      email: form.value.email,
+      phone_number: form.value.telepon,
+      location: form.value.lokasi,
+      timezone: form.value.timezone,
+    })
+    saved.value = true
+    setTimeout(() => { saved.value = false }, 2500)
+  } catch (err) {
+    error.value = err?.message || 'Gagal memperbarui profil organisasi.'
+  } finally {
+    saving.value = false
+  }
 }
 
 const timezones = ['WIB (UTC+7)', 'WITA (UTC+8)', 'WIT (UTC+9)', 'UTC+0']
+
+async function loadOrganization() {
+  error.value = ''
+  try {
+    organizationId.value = await ensureOrganizationId()
+    if (!organizationId.value) {
+      error.value = 'Organisasi belum tersedia untuk akun ini.'
+      return
+    }
+    const data = await getOrganizationProfile(organizationId.value)
+    form.value.nama = data?.name || data?.nama || form.value.nama
+    form.value.deskripsi = data?.description || data?.deskripsi || ''
+    form.value.email = data?.email || ''
+    form.value.telepon = data?.phone_number || data?.telepon || ''
+    form.value.lokasi = data?.location || data?.lokasi || ''
+    form.value.timezone = data?.timezone || ''
+    charCount.value = form.value.deskripsi.length
+    logoPreview.value = data?.logo_url || data?.logo || logoPreview.value
+  } catch (err) {
+      // Friendly handling for organization-not-verified (backend may return 403)
+      if (err?.status === 403 || /verif/i.test(String(err?.message || ''))) {
+        error.value = 'Organisasi belum diverifikasi. Silakan hubungi administrator atau verifikasi organisasi melalui dashboard admin.'
+      } else {
+        error.value = err?.message || 'Gagal memuat profil organisasi.'
+      }
+  }
+}
+
+onMounted(loadOrganization)
 </script>
 
 <template>
   <AppLayout page-title="Pokdakan Bintang Rosela Jaya">
     <div class="org-page">
       <h2 class="section-title">Profile Organisasi</h2>
+
+      <div v-if="error" class="form-error">{{ error }}</div>
 
       <div class="org-grid">
         <!-- Left column -->
@@ -161,6 +211,14 @@ const timezones = ['WIB (UTC+7)', 'WITA (UTC+8)', 'WIT (UTC+9)', 'UTC+0']
 .optional { color: var(--color-text-muted); font-weight: 400; font-size: 13px; }
 .form-hint { font-size: 11px; color: var(--color-text-muted); margin-top: 4px; font-style: italic; }
 .char-count { font-size: 12px; color: var(--color-text-muted); text-align: right; }
+.form-error {
+  padding: 10px 14px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--color-danger);
+}
 
 .form-input {
   padding: 11px 14px;

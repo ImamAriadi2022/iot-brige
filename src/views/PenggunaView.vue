@@ -1,16 +1,22 @@
 <script setup>
-import { ref } from 'vue'
+import {
+    createLocalMember,
+    deleteMember,
+    ensureOrganizationId,
+    getOrganizationMembers,
+    unwrapApiList,
+} from '@/services/api.js'
+import { onMounted, ref } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 
 const showAddModal = ref(false)
 const showDeleteModal = ref(false)
 const selectedUser = ref(null)
 
-const users = ref([
-  { id: 1, nama: 'Mufita', phone: '0895353304313', email: 'mufita.fergams@gmail.com', peran: 'Admin Organisasi' },
-  { id: 2, nama: 'Adil', phone: '0895353304313', email: 'adil@gmail.com', peran: 'Operator' },
-  { id: 3, nama: 'Juni', phone: '0895353304313', email: 'pakjuni@gmail.com', peran: 'Viewers' },
-])
+const users = ref([])
+const loading = ref(false)
+const error = ref('')
+const organizationId = ref(null)
 
 const newUser = ref({ nama: '', phone: '', email: '', peran: 'Operator' })
 const peranOptions = ['Admin Organisasi', 'Operator', 'Viewers']
@@ -20,20 +26,70 @@ function openDelete(user) {
   showDeleteModal.value = true
 }
 
-function confirmDelete() {
-  users.value = users.value.filter(u => u.id !== selectedUser.value.id)
-  showDeleteModal.value = false
+async function confirmDelete() {
+  if (!organizationId.value) return
+  try {
+    await deleteMember(organizationId.value, selectedUser.value.id)
+    users.value = users.value.filter(u => u.id !== selectedUser.value.id)
+  } catch (err) {
+    error.value = err?.message || 'Gagal menghapus pengguna.'
+  } finally {
+    showDeleteModal.value = false
+  }
 }
 
-function addUser() {
+async function addUser() {
   if (!newUser.value.nama || !newUser.value.email) return
-  users.value.push({
-    id: Date.now(),
-    ...newUser.value
-  })
-  newUser.value = { nama: '', phone: '', email: '', peran: 'Operator' }
-  showAddModal.value = false
+  if (!organizationId.value) {
+    error.value = 'Organisasi belum tersedia.'
+    return
+  }
+  try {
+    await createLocalMember(organizationId.value, {
+      name: newUser.value.nama,
+      email: newUser.value.email,
+      phone_number: newUser.value.phone,
+      role: newUser.value.peran,
+    })
+    newUser.value = { nama: '', phone: '', email: '', peran: 'Operator' }
+    showAddModal.value = false
+    await loadMembers()
+  } catch (err) {
+    error.value = err?.message || 'Gagal menambahkan pengguna.'
+  }
 }
+
+function mapMember(u) {
+  return {
+    id: u?.id || u?.user_id || u?.userId || u?._id,
+    nama: u?.name || u?.nama || u?.username || 'Pengguna',
+    phone: u?.phone_number || u?.phone || '-',
+    email: u?.email || '-',
+    peran: u?.role || u?.peran || 'Operator',
+  }
+}
+
+async function loadMembers() {
+  loading.value = true
+  error.value = ''
+  try {
+    organizationId.value = await ensureOrganizationId()
+    if (!organizationId.value) {
+      error.value = 'Organisasi belum tersedia untuk akun ini.'
+      users.value = []
+      return
+    }
+    const data = await getOrganizationMembers(organizationId.value)
+    const list = unwrapApiList(data)
+    users.value = list.map(mapMember).filter(u => u.id)
+  } catch (err) {
+    error.value = err?.message || 'Gagal memuat daftar pengguna.'
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(loadMembers)
 </script>
 
 <template>
@@ -48,7 +104,9 @@ function addUser() {
       </button>
     </div>
 
-    <div class="table-wrap">
+    <div v-if="error" class="table-error">{{ error }}</div>
+    <div v-else-if="loading" class="table-error">Memuat pengguna...</div>
+    <div v-else class="table-wrap">
       <table class="data-table">
         <thead>
           <tr>
@@ -181,6 +239,13 @@ function addUser() {
   box-shadow: var(--shadow-sm);
   overflow: hidden;
   overflow-x: auto;
+}
+.table-error {
+  background: white;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 16px;
+  color: var(--color-text-muted);
 }
 .data-table {
   width: 100%;
