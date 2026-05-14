@@ -18,8 +18,8 @@ const loading = ref(false)
 const error = ref('')
 const organizationId = ref(null)
 
-const newUser = ref({ nama: '', phone: '', email: '', peran: 'Operator' })
-const peranOptions = ['Admin Organisasi', 'Operator', 'Viewers']
+const newUser = ref({ username: '', password: '' })
+
 
 function openDelete(user) {
   selectedUser.value = user
@@ -39,25 +39,24 @@ async function confirmDelete() {
 }
 
 async function addUser() {
-  if (!newUser.value.nama || !newUser.value.email) return
+  if (!newUser.value.username || !newUser.value.password) return
   if (!organizationId.value) {
     error.value = 'Organisasi belum tersedia.'
     return
   }
   try {
     await createLocalMember(organizationId.value, {
-      name: newUser.value.nama,
-      email: newUser.value.email,
-      phone_number: newUser.value.phone,
-      role: newUser.value.peran,
+      username: newUser.value.username,
+      password: newUser.value.password,
     })
-    newUser.value = { nama: '', phone: '', email: '', peran: 'Operator' }
+    newUser.value = { username: '', password: '' }
     showAddModal.value = false
     await loadMembers()
   } catch (err) {
     error.value = err?.message || 'Gagal menambahkan pengguna.'
   }
 }
+
 
 function mapMember(u) {
   return {
@@ -157,23 +156,14 @@ onMounted(loadMembers)
           </div>
           <form @submit.prevent="addUser" class="modal-form">
             <div class="form-group">
-              <label class="form-label">Nama</label>
-              <input v-model="newUser.nama" type="text" class="form-input" placeholder="Nama pengguna" required/>
+              <label class="form-label">Username</label>
+              <input v-model="newUser.username" type="text" class="form-input" placeholder="Username" required/>
             </div>
             <div class="form-group">
-              <label class="form-label">Email</label>
-              <input v-model="newUser.email" type="email" class="form-input" placeholder="Alamat email" required/>
+              <label class="form-label">Password</label>
+              <input v-model="newUser.password" type="password" class="form-input" placeholder="Password" required/>
             </div>
-            <div class="form-group">
-              <label class="form-label">Nomor Handphone</label>
-              <input v-model="newUser.phone" type="tel" class="form-input" placeholder="Nomor handphone"/>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Peran</label>
-              <select v-model="newUser.peran" class="form-input">
-                <option v-for="p in peranOptions" :key="p" :value="p">{{ p }}</option>
-              </select>
-            </div>
+
             <div class="modal-actions">
               <button type="button" class="btn-outline" @click="showAddModal = false">Batal</button>
               <button type="submit" class="btn-primary">Tambah</button>

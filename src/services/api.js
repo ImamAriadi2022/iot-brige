@@ -1,4 +1,5 @@
 const BASE_URL = 'https://iotbridge.click'
+
 const ORG_KEY = 'iot_bridge_org_id'
 
 /**
@@ -9,11 +10,13 @@ async function request(path, options = {}) {
   let token = localStorage.getItem('iot_bridge_token') || ''
   if (token === 'undefined' || token === 'null') token = ''
 
+  const isFormData = options.body instanceof FormData
   const headers = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers || {}),
   }
+
 
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
@@ -134,17 +137,12 @@ export function getProfile() {
  * @param {FormData} formData
  */
 export function updateProfile(formData) {
-  const token = localStorage.getItem('iot_bridge_token')
-  return fetch(`${BASE_URL}/auth/profile`, {
+  return request('/auth/profile', {
     method: 'PATCH',
-    headers: { Authorization: `Bearer ${token}` },
     body: formData,
-  }).then(async (res) => {
-    const data = await res.json().catch(() => null)
-    if (!res.ok) throw new Error(data?.message || `Gagal memperbarui profil (${res.status})`)
-    return data
   })
 }
+
 
 /**
  * PATCH /auth/email
@@ -176,12 +174,51 @@ export function getOrganizationsList() {
   return request('/organizations/list')
 }
 
+export function proposeOrganization(body) {
+  return request('/organizations/propose', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export function verifyOrganization(body) {
+  return request('/organizations/verify', {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+}
+
+export function unverifyOrganization(body) {
+  return request('/organizations/unverify', {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+}
+
 export function getOrganizationProfile(organizationId) {
   return request(`/organizations/${organizationId}/profile`)
 }
 
 export function updateOrganizationProfile(organizationId, body) {
   return request(`/organizations/${organizationId}/profile`, {
+    method: 'PATCH',
+    body: body instanceof FormData ? body : JSON.stringify(body),
+  })
+}
+
+export function searchOrganizationMembers(organizationId, params = {}) {
+  return request(`/organizations/${organizationId}/search-members${toQuery(params)}`)
+}
+
+export function memberInvitation(organizationId, body) {
+  return request(`/organizations/${organizationId}/member-invitation`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export function memberInvitationResponse(organizationId, body) {
+  return request(`/organizations/${organizationId}/member-invitation-response`, {
     method: 'PATCH',
     body: JSON.stringify(body),
   })
@@ -210,6 +247,21 @@ export function changeMemberRoles(organizationId, body) {
     body: JSON.stringify(body),
   })
 }
+
+export function leaveOrganization(organizationId) {
+  return request(`/organizations/${organizationId}/leave`, {
+    method: 'DELETE',
+  })
+}
+
+export function searchOrganizations(params = {}) {
+  return request(`/organizations/search${toQuery(params)}`)
+}
+
+export function getOrganizationById(organizationId) {
+  return request(`/organizations/${organizationId}`)
+}
+
 
 // ─────────────────────────────────────────────────────────────
 // Devices & Widget Boxes
@@ -251,6 +303,10 @@ export function getWidgetBoxList(organizationId, deviceId) {
   return request(`/organizations/${organizationId}/devices/${deviceId}/widget-boxes/list`)
 }
 
+export function getWidgetBoxById(organizationId, deviceId, widgetBoxId) {
+  return request(`/organizations/${organizationId}/devices/${deviceId}/widget-boxes/${widgetBoxId}`)
+}
+
 export function upsertWidgetBoxes(organizationId, deviceId, body) {
   return request(`/organizations/${organizationId}/devices/${deviceId}/widget-boxes`, {
     method: 'PUT',
@@ -268,9 +324,34 @@ export function getDeviceReport(organizationId, deviceId, params = {}) {
   return request(`/organizations/${organizationId}/devices/${deviceId}/report${toQuery(params)}`)
 }
 
+export function createNotificationEvent(organizationId, deviceId, body) {
+  return request(`/organizations/${organizationId}/devices/${deviceId}/notification-events`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
 export function getNotificationEvents(organizationId, deviceId) {
   return request(`/organizations/${organizationId}/devices/${deviceId}/notification-events/list`)
 }
+
+export function getNotificationEventById(organizationId, deviceId, notificationEventId) {
+  return request(`/organizations/${organizationId}/devices/${deviceId}/notification-events/${notificationEventId}`)
+}
+
+export function updateNotificationEvent(organizationId, deviceId, notificationEventId, body) {
+  return request(`/organizations/${organizationId}/devices/${deviceId}/notification-events/${notificationEventId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+}
+
+export function deleteNotificationEvent(organizationId, deviceId, notificationEventId) {
+  return request(`/organizations/${organizationId}/devices/${deviceId}/notification-events/${notificationEventId}`, {
+    method: 'DELETE',
+  })
+}
+
 
 // ─────────────────────────────────────────────────────────────
 // Notifications (global)
@@ -334,3 +415,16 @@ export async function ensureOrganizationId() {
 export function unwrapApiList(data) {
   return unwrapList(data)
 }
+
+// ─────────────────────────────────────────────────────────────
+// Users
+// ─────────────────────────────────────────────────────────────
+
+export function searchUsers(params = {}) {
+  return request(`/users/search${toQuery(params)}`)
+}
+
+export function getUserById(userId) {
+  return request(`/users/${userId}`)
+}
+

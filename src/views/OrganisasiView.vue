@@ -41,14 +41,15 @@ async function handleSave() {
   saving.value = true
   error.value = ''
   try {
-    await updateOrganizationProfile(organizationId.value, {
-      name: form.value.nama,
-      description: form.value.deskripsi,
-      email: form.value.email,
-      phone_number: form.value.telepon,
-      location: form.value.lokasi,
-      timezone: form.value.timezone,
-    })
+    const formData = new FormData()
+    formData.append('name', form.value.nama)
+    formData.append('description', form.value.deskripsi)
+    formData.append('location', form.value.lokasi)
+    if (logoFile.value) {
+      formData.append('organization_picture', logoFile.value)
+    }
+
+    await updateOrganizationProfile(organizationId.value, formData)
     saved.value = true
     setTimeout(() => { saved.value = false }, 2500)
   } catch (err) {
@@ -57,6 +58,7 @@ async function handleSave() {
     saving.value = false
   }
 }
+
 
 const timezones = ['WIB (UTC+7)', 'WITA (UTC+8)', 'WIT (UTC+9)', 'UTC+0']
 

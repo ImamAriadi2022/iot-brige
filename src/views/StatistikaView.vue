@@ -72,16 +72,50 @@ async function handleShowReport() {
   }
 }
 
-const reportText = computed(() => {
-  if (!report.value) return ''
-  try {
-    return JSON.stringify(report.value, null, 2)
-  } catch {
-    return String(report.value)
+const chartData = computed(() => {
+  if (!report.value || !report.value.data) return []
+  return report.value.data.map(d => ({
+    value: parseFloat(d.value),
+    time: new Date(d.time),
+  })).sort((a, b) => a.time - b.time)
+})
+
+const minMax = computed(() => {
+  const data = chartData.value
+  if (data.length === 0) return { min: 0, max: 100 }
+  const values = data.map(d => d.value)
+  return {
+    min: Math.min(...values),
+    max: Math.max(...values),
   }
 })
 
+const chartPoints = computed(() => {
+  const data = chartData.value
+  if (data.length === 0) return []
+  const { min, max } = minMax.value
+  const range = max - min || 1
+  const width = 600
+  const height = 300
+  const padding = 30
+  
+  const startTime = data[0].time.getTime()
+  const endTime = data[data.length - 1].time.getTime()
+  const timeRange = endTime - startTime || 1
+
+  return data.map(d => {
+    const x = padding + (d.time.getTime() - startTime) / timeRange * (width - 2 * padding)
+    const y = height - padding - (d.value - min) / range * (height - 2 * padding)
+    return { x, y, value: d.value, time: d.time }
+  })
+})
+
+const svgPoints = computed(() => {
+  return chartPoints.value.map(p => `${p.x},${p.y}`).join(' ')
+})
+
 onMounted(loadDevicesAndWidgets)
+
 </script>
 
 <template>
@@ -116,9 +150,37 @@ onMounted(loadDevicesAndWidgets)
       <p v-else-if="report" class="empty-text">Report berhasil dimuat.</p>
       <p v-else class="empty-text">Tidak ada data report untuk rentang waktu yang dipilih.</p>
 
-      <div v-if="report" class="report-card">
-        <pre class="report-json">{{ reportText }}</pre>
+      <div v-if="report && chartData.length > 0" class="report-card">
+        <svg width="100%" height="300" viewBox="0 0 600 300" class="chart-svg">
+          <!-- Background grid -->
+          <line x1="30" y1="30" x2="570" y2="30" stroke="#f1f5f9" stroke-width="1"/>
+          <line x1="30" y1="150" x2="570" y2="150" stroke="#f1f5f9" stroke-width="1"/>
+          <line x1="30" y1="270" x2="570" y2="270" stroke="#cbd5e1" stroke-width="1"/>
+          
+          <!-- Axes labels -->
+          <text x="25" y="35" font-size="12" fill="#94a3b8" text-anchor="end">{{ minMax.max.toFixed(1) }}</text>
+          <text x="25" y="275" font-size="12" fill="#94a3b8" text-anchor="end">{{ minMax.min.toFixed(1) }}</text>
+          
+          <!-- Line -->
+          <polyline :points="svgPoints" fill="none" stroke="var(--color-primary)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          
+          <!-- Points -->
+          <circle
+            v-for="(p, i) in chartPoints"
+            :key="i"
+            :cx="p.x"
+            :cy="p.y"
+            r="5"
+            fill="var(--color-accent)"
+            stroke="white"
+            stroke-width="2"
+          >
+            <title>{{ p.value }} at {{ p.time.toLocaleString() }}</title>
+          </circle>
+        </svg>
       </div>
+      <div v-else-if="report" class="empty-text">Data report kosong atau tidak valid.</div>
+
     </div>
   </AppLayout>
 </template>
