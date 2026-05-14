@@ -5,6 +5,7 @@ import {
   searchDevices,
   unwrapApiList,
 } from '@/services/api.js'
+import { getNotificationMode, isLocalNotificationEnabled, showBrowserNotification } from '@/utils/notifications.js'
 import { onMounted, ref, watch } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 
@@ -14,6 +15,7 @@ const notifications = ref([])
 const loading = ref(false)
 const error = ref('')
 const orgId = ref(null)
+const seenEventIds = new Set()
 
 function mapDevice(d) {
   const id = d?.id || d?.device_id || d?.deviceId || d?._id
@@ -60,7 +62,15 @@ async function loadEvents() {
   try {
     const data = await getNotificationEvents(orgId.value, selectedDevice.value)
     const list = unwrapApiList(data)
-    notifications.value = list.map(mapEvent)
+    const mapped = list.map(mapEvent)
+    if (getNotificationMode() === 'Aktif' && isLocalNotificationEnabled()) {
+      mapped.forEach((item) => {
+        if (!item.id || seenEventIds.has(item.id)) return
+        seenEventIds.add(item.id)
+        showBrowserNotification(item.title, item.message)
+      })
+    }
+    notifications.value = mapped
   } catch (err) {
     error.value = err?.message || 'Gagal memuat notifikasi.'
   } finally {

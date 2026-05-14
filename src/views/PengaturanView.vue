@@ -1,21 +1,34 @@
 <script setup>
+import { ensureLocalNotificationPermission, getNotificationMode, setNotificationMode } from '@/utils/notifications.js'
 import { ref } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 
-const notifikasi = ref('Aktif')
+const notifikasi = ref(getNotificationMode())
 const bahasa = ref('Bahasa Indonesia')
 const saving = ref(false)
 const saved = ref(false)
+const error = ref('')
 
 const notifOptions = ['Aktif', 'Nonaktif']
 const bahasaOptions = ['Bahasa Indonesia', 'English']
 
 async function handleSave() {
+  error.value = ''
   saving.value = true
-  await new Promise(r => setTimeout(r, 800))
-  saving.value = false
-  saved.value = true
-  setTimeout(() => { saved.value = false }, 2500)
+  try {
+    setNotificationMode(notifikasi.value)
+    if (notifikasi.value === 'Aktif') {
+      const granted = await ensureLocalNotificationPermission()
+      if (!granted) {
+        error.value = 'Izin notifikasi lokal belum diberikan di browser.'
+      }
+    }
+    await new Promise(r => setTimeout(r, 500))
+    saved.value = true
+    setTimeout(() => { saved.value = false }, 2500)
+  } finally {
+    saving.value = false
+  }
 }
 </script>
 
@@ -33,6 +46,7 @@ async function handleSave() {
               <path d="M6 9l6 6 6-6"/>
             </svg>
           </div>
+          <p class="hint-text">Aktif = notifikasi website + notifikasi lokal browser. Nonaktif = hanya notifikasi di website.</p>
         </div>
 
         <div class="form-group">
@@ -48,6 +62,7 @@ async function handleSave() {
         </div>
 
         <div class="save-row">
+          <span v-if="error" class="saved-msg error-msg">{{ error }}</span>
           <Transition name="fade">
             <span v-if="saved" class="saved-msg">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -79,6 +94,7 @@ async function handleSave() {
 }
 .form-group { display: flex; flex-direction: column; gap: 8px; }
 .form-label { font-size: 15px; font-weight: 700; color: var(--color-text); }
+.hint-text { font-size: 12px; color: var(--color-text-muted); line-height: 1.45; }
 .select-wrap { position: relative; }
 .form-input {
   width: 100%; padding: 12px 44px 12px 18px;
@@ -96,6 +112,7 @@ async function handleSave() {
 }
 .save-row { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 8px; }
 .saved-msg { display: flex; align-items: center; gap: 6px; color: var(--color-success); font-size: 13px; font-weight: 600; }
+.saved-msg.error-msg { color: var(--color-danger); }
 .btn-primary {
   padding: 10px 28px; background: var(--color-primary); color: white;
   border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 700;

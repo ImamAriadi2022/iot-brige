@@ -5,15 +5,15 @@ import { useRouter } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
 
 const router = useRouter()
-const form = ref({ current: '', newPass: '', confirm: '' })
-const show = ref({ current: false, newPass: false, confirm: false })
+const form = ref({ newPass: '', confirm: '' })
+const show = ref({ newPass: false, confirm: false })
 const saving = ref(false)
 const error = ref('')
 const success = ref(false)
 
 async function handleSave() {
   error.value = ''
-  if (!form.value.current || !form.value.newPass || !form.value.confirm) {
+  if (!form.value.newPass || !form.value.confirm) {
     error.value = 'Semua field harus diisi.'
     return
   }
@@ -28,11 +28,10 @@ async function handleSave() {
   saving.value = true
   try {
     await updatePassword({
-      old_password: form.value.current,
       new_password: form.value.newPass,
     })
     success.value = true
-    form.value = { current: '', newPass: '', confirm: '' }
+    form.value = { newPass: '', confirm: '' }
     setTimeout(() => { success.value = false }, 3000)
   } catch (err) {
     error.value = err?.message || 'Gagal mengubah kata sandi.'
@@ -49,28 +48,6 @@ async function handleSave() {
         <h2 class="card-title">Ubah Kata Sandi</h2>
 
         <form class="pw-form" @submit.prevent="handleSave">
-          <div class="form-group">
-            <label class="form-label">Kata Sandi Saat Ini<span class="required">*</span></label>
-            <div class="input-wrap">
-              <input
-                id="pw-current"
-                v-model="form.current"
-                :type="show.current ? 'text' : 'password'"
-                class="form-input"
-                placeholder="Masukan kata sandi saat ini"
-              />
-              <button type="button" class="toggle-pw" @click="show.current = !show.current">
-                <svg v-if="!show.current" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>
-                </svg>
-                <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                  <line x1="1" y1="1" x2="23" y2="23"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-
           <div class="form-group">
             <label class="form-label">Kata Sandi Baru<span class="required">*</span></label>
             <div class="input-wrap">

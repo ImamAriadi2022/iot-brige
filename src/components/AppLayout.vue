@@ -1,5 +1,6 @@
 <script setup>
-import { clearSession } from '@/services/api.js'
+import { clearSession, getNotifications } from '@/services/api.js'
+import { getNotificationMode, isLocalNotificationEnabled, showBrowserNotification } from '@/utils/notifications.js'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -11,7 +12,13 @@ const router = useRouter()
 const route = useRoute()
 const sidebarOpen = ref(false)
 const userMenuOpen = ref(false)
+const notifMenuOpen = ref(false)
 const showLogoutModal = ref(false)
+const globalNotifications = ref([])
+const notifLoading = ref(false)
+const notifError = ref('')
+const notifSeenIds = new Set()
+let notifTimer = null
 
 const user = computed(() => {
   const u = localStorage.getItem('iot_bridge_user')
@@ -48,9 +55,21 @@ function closeUserMenu() {
   userMenuOpen.value = false
 }
 
+function toggleNotifMenu() {
+  notifMenuOpen.value = !notifMenuOpen.value
+  if (notifMenuOpen.value && globalNotifications.value.length === 0) {
+    loadGlobalNotifications()
+  }
+}
+
+function closeNotifMenu() {
+  notifMenuOpen.value = false
+}
+
 function confirmLogout() {
   showLogoutModal.value = true
   userMenuOpen.value = false
+  notifMenuOpen.value = false
 }
 
 function logout() {
@@ -63,13 +82,58 @@ function handleOutsideClick(e) {
   if (!e.target.closest('.user-menu-wrap')) {
     userMenuOpen.value = false
   }
+  if (!e.target.closest('.notif-menu-wrap')) {
+    notifMenuOpen.value = false
+  }
   if (window.innerWidth <= 768 && !e.target.closest('.sidebar') && !e.target.closest('.hamburger')) {
     sidebarOpen.value = false
   }
 }
 
+function mapGlobalNotification(item) {
+  return {
+    id: item?.id || item?.notification_id || item?.notificationId || item?._id,
+    title: item?.title || item?.subject || item?.type || 'Notifikasi',
+    message: item?.message || item?.detail || item?.description || '-',
+    time: item?.time || item?.created_at || item?.createdAt || '',
+  }
+}
+
+async function loadGlobalNotifications() {
+  notifLoading.value = true
+  notifError.value = ''
+  try {
+    const data = await getNotifications()
+    const list = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : Array.isArray(data?.items) ? data.items : Array.isArray(data?.results) ? data.results : []
+    const mapped = list.map(mapGlobalNotification).filter((item) => item.id)
+    const localNotificationEnabled = getNotificationMode() === 'Aktif' && isLocalNotificationEnabled()
+
+    mapped.forEach((item) => {
+      if (!notifSeenIds.has(item.id)) {
+        notifSeenIds.add(item.id)
+        if (localNotificationEnabled) {
+          showBrowserNotification(item.title, item.message)
+        }
+      }
+    })
+
+    globalNotifications.value = mapped
+  } catch (err) {
+    notifError.value = err?.message || 'Gagal memuat notifikasi.'
+  } finally {
+    notifLoading.value = false
+  }
+}
+
 onMounted(() => document.addEventListener('click', handleOutsideClick))
-onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
+onMounted(() => {
+  loadGlobalNotifications()
+  notifTimer = window.setInterval(loadGlobalNotifications, 30000)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', handleOutsideClick)
+  if (notifTimer) window.clearInterval(notifTimer)
+})
 </script>
 
 <template>
@@ -179,6 +243,31 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
           <h1 class="page-title">{{ pageTitle }}</h1>
         </div>
         <div class="topbar-right">
+          <div class="notif-menu-wrap" @click.stop>
+            <button class="notif-btn" @click="toggleNotifMenu" aria-label="Notifikasi global">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+              <span v-if="globalNotifications.length" class="notif-badge">{{ globalNotifications.length }}</span>
+            </button>
+            <div v-if="notifMenuOpen" class="notif-dropdown">
+              <div class="notif-dropdown-head">
+                <span>Semua Notifikasi</span>
+                <button class="notif-refresh" @click="loadGlobalNotifications">Muat ulang</button>
+              </div>
+              <div v-if="notifError" class="notif-dropdown-empty error">{{ notifError }}</div>
+              <div v-else-if="notifLoading" class="notif-dropdown-empty">Memuat...</div>
+              <div v-else-if="globalNotifications.length === 0" class="notif-dropdown-empty">Belum ada notifikasi.</div>
+              <div v-else class="notif-dropdown-list">
+                <div v-for="item in globalNotifications.slice(0, 5)" :key="item.id" class="notif-dropdown-item">
+                  <div class="notif-dropdown-title">{{ item.title }}</div>
+                  <div class="notif-dropdown-message">{{ item.message }}</div>
+                  <div class="notif-dropdown-time">{{ item.time }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
           <div class="user-menu-wrap" @click.stop="toggleUserMenu">
             <button class="user-btn">
               <div class="user-avatar">{{ user.name?.charAt(0)?.toUpperCase() || 'U' }}</div>
@@ -200,6 +289,13 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
                   <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
                 </svg>
                 Ubah Kata Sandi
+              </RouterLink>
+              <RouterLink to="/ubah-email" class="dropdown-item" @click="closeUserMenu">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M4 4h16v16H4z"/>
+                  <path d="M4 8l8 5 8-5"/>
+                </svg>
+                Ubah Email
               </RouterLink>
               <hr class="dropdown-divider"/>
               <button class="dropdown-item danger" @click="confirmLogout">
@@ -436,6 +532,10 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
   gap: 12px;
 }
 
+.notif-menu-wrap {
+  position: relative;
+}
+
 .notif-btn {
   display: flex;
   align-items: center;
@@ -443,12 +543,113 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
   width: 38px;
   height: 38px;
   border-radius: 50%;
+  border: none;
+  background: none;
   color: var(--color-text);
   transition: var(--transition);
+  cursor: pointer;
+  position: relative;
 }
 .notif-btn:hover {
   background: var(--color-bg);
   color: var(--color-accent);
+}
+
+.notif-badge {
+  position: absolute;
+  top: -3px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid white;
+}
+
+.notif-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 320px;
+  max-width: calc(100vw - 24px);
+  background: white;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 10px;
+  z-index: 220;
+}
+
+.notif-dropdown-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 6px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.notif-refresh {
+  border: none;
+  background: none;
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.notif-dropdown-empty {
+  padding: 16px 10px;
+  text-align: center;
+  color: var(--color-text-light);
+  font-size: 13px;
+}
+
+.notif-dropdown-empty.error {
+  color: var(--color-danger);
+}
+
+.notif-dropdown-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.notif-dropdown-item {
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.notif-dropdown-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 2px;
+}
+
+.notif-dropdown-message {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+.notif-dropdown-time {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--color-text-light);
 }
 
 .user-menu-wrap {

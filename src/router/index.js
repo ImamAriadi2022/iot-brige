@@ -1,17 +1,18 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-import LoginView from '../views/LoginView.vue'
-import RegisterView from '../views/RegisterView.vue'
-import ForgotPasswordView from '../views/ForgotPasswordView.vue'
 import DashboardView from '../views/DashboardView.vue'
-import PoolDetailView from '../views/PoolDetailView.vue'
+import ForgotPasswordView from '../views/ForgotPasswordView.vue'
+import LoginView from '../views/LoginView.vue'
 import NotifikasiView from '../views/NotifikasiView.vue'
-import PerangkatView from '../views/PerangkatView.vue'
-import StatistikaView from '../views/StatistikaView.vue'
-import PenggunaView from '../views/PenggunaView.vue'
 import OrganisasiView from '../views/OrganisasiView.vue'
 import PengaturanView from '../views/PengaturanView.vue'
+import PenggunaView from '../views/PenggunaView.vue'
+import PerangkatView from '../views/PerangkatView.vue'
+import PoolDetailView from '../views/PoolDetailView.vue'
 import ProfileView from '../views/ProfileView.vue'
+import RegisterView from '../views/RegisterView.vue'
+import StatistikaView from '../views/StatistikaView.vue'
+import UbahEmailView from '../views/UbahEmailView.vue'
 import UbahKataSandiView from '../views/UbahKataSandiView.vue'
 
 const routes = [
@@ -29,6 +30,7 @@ const routes = [
   { path: '/pengaturan', component: PengaturanView, meta: { auth: true } },
   { path: '/profile', component: ProfileView, meta: { auth: true } },
   { path: '/ubah-kata-sandi', component: UbahKataSandiView, meta: { auth: true } },
+  { path: '/ubah-email', component: UbahEmailView, meta: { auth: true } },
 ]
 
 const router = createRouter({
