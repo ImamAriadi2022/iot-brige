@@ -1,16 +1,16 @@
 <script setup>
 import { ensureLocalNotificationPermission, getNotificationMode, setNotificationMode } from '@/utils/notifications.js'
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 
 const notifikasi = ref(getNotificationMode())
-const bahasa = ref('Bahasa Indonesia')
 const saving = ref(false)
 const saved = ref(false)
 const error = ref('')
 
 const notifOptions = ['Aktif', 'Nonaktif']
-const bahasaOptions = ['Bahasa Indonesia', 'English']
+
+const permissionStatus = ref(typeof Notification !== 'undefined' ? Notification.permission : 'default')
 
 async function handleSave() {
   error.value = ''
@@ -22,6 +22,7 @@ async function handleSave() {
       if (!granted) {
         error.value = 'Izin notifikasi lokal belum diberikan di browser.'
       }
+      permissionStatus.value = typeof Notification !== 'undefined' ? Notification.permission : 'default'
     }
     await new Promise(r => setTimeout(r, 500))
     saved.value = true
@@ -30,12 +31,30 @@ async function handleSave() {
     saving.value = false
   }
 }
+
+async function requestPermission() {
+  if (typeof Notification === 'undefined') return
+  const res = await Notification.requestPermission()
+  permissionStatus.value = res
+  if (res === 'granted') {
+    notifikasi.value = 'Aktif'
+    setNotificationMode('Aktif')
+  }
+}
+
+onMounted(() => {
+  if (typeof Notification !== 'undefined') {
+    permissionStatus.value = Notification.permission
+  }
+})
 </script>
 
 <template>
   <AppLayout page-title="Pengaturan">
     <div class="settings-page">
       <div class="settings-card">
+        
+        <!-- Notifikasi Section -->
         <div class="form-group">
           <label class="form-label">Notifikasi</label>
           <div class="select-wrap">
@@ -49,16 +68,18 @@ async function handleSave() {
           <p class="hint-text">Aktif = notifikasi website + notifikasi lokal browser. Nonaktif = hanya notifikasi di website.</p>
         </div>
 
-        <div class="form-group">
-          <label class="form-label">Bahasa</label>
-          <div class="select-wrap">
-            <select v-model="bahasa" class="form-input">
-              <option v-for="opt in bahasaOptions" :key="opt" :value="opt">{{ opt }}</option>
-            </select>
-            <svg class="select-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M6 9l6 6 6-6"/>
-            </svg>
+        <!-- Permission Status -->
+        <div class="form-group permission-box">
+          <label class="form-label">Status Izin Browser</label>
+          <div class="status-row">
+            <span :class="['status-badge', permissionStatus]">
+              {{ permissionStatus === 'granted' ? 'Diizinkan' : permissionStatus === 'denied' ? 'Diblokir' : 'Belum Ditanya' }}
+            </span>
+            <button v-if="permissionStatus !== 'granted'" class="btn-secondary" @click="requestPermission">
+              Minta Izin
+            </button>
           </div>
+          <p class="hint-text">Aplikasi membutuhkan izin browser untuk memunculkan notifikasi langsung di layar komputer/HP Anda.</p>
         </div>
 
         <div class="save-row">
@@ -122,6 +143,29 @@ async function handleSave() {
 .btn-primary:disabled { opacity: 0.7; cursor: not-allowed; }
 .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Permission Specific Styles */
+.permission-box {
+  background: #f8fafc;
+  padding: 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+.status-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.status-badge {
+  font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 12px;
+}
+.status-badge.granted { background: #def7ec; color: #03543f; }
+.status-badge.denied { background: #fde8e8; color: #9b1c1c; }
+.status-badge.default { background: #fef08a; color: #713f12; }
+
+.btn-secondary {
+  padding: 8px 16px; background: white; color: var(--color-primary);
+  border: 1.5px solid var(--color-primary); border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: 700; cursor: pointer; transition: var(--transition);
+}
+.btn-secondary:hover { background: var(--color-primary); color: white; }
+
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 
@@ -130,5 +174,7 @@ async function handleSave() {
   .settings-card { padding: 24px 20px; }
   .save-row { justify-content: stretch; }
   .btn-primary { width: 100%; justify-content: center; }
+  .status-row { flex-direction: column; gap: 10px; align-items: flex-start; }
+  .btn-secondary { width: 100%; text-align: center; }
 }
 </style>
