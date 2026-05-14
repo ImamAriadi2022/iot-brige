@@ -4,6 +4,8 @@ import {
     deleteMember,
     ensureOrganizationId,
     getOrganizationMembers,
+    memberInvitation,
+    searchUsers,
     unwrapApiList,
 } from '@/services/api.js'
 import { onMounted, ref } from 'vue'
@@ -11,6 +13,7 @@ import AppLayout from '../components/AppLayout.vue'
 
 const showAddModal = ref(false)
 const showDeleteModal = ref(false)
+const showInviteModal = ref(false)
 const selectedUser = ref(null)
 
 const users = ref([])
@@ -19,6 +22,10 @@ const error = ref('')
 const organizationId = ref(null)
 
 const newUser = ref({ username: '', password: '' })
+const searchQuery = ref('')
+const searchResults = ref([])
+const searchLoading = ref(false)
+
 
 
 function openDelete(user) {
@@ -88,20 +95,61 @@ async function loadMembers() {
   }
 }
 
+async function handleSearchUsers() {
+  if (!searchQuery.value) {
+    searchResults.value = []
+    return
+  }
+  searchLoading.value = true
+  try {
+    const data = await searchUsers({ q: searchQuery.value })
+    const list = unwrapApiList(data)
+    searchResults.value = list.map(u => ({
+      id: u.id || u.user_id || u._id,
+      name: u.name || u.username || 'Pengguna',
+      username: u.username,
+    }))
+  } catch (err) {
+    console.error('Failed to search users:', err)
+  } finally {
+    searchLoading.value = false
+  }
+}
+
+async function inviteUser(userId) {
+  if (!organizationId.value) return
+  try {
+    await memberInvitation(organizationId.value, { user_id: userId })
+    alert('Undangan berhasil dikirim!')
+    showInviteModal.value = false
+    searchQuery.value = ''
+    searchResults.value = []
+  } catch (err) {
+    alert(err?.message || 'Gagal mengirim undangan.')
+  }
+}
+
 onMounted(loadMembers)
+
 </script>
 
 <template>
   <AppLayout page-title="Pokdakan Bintang Rosela Jaya">
     <div class="section-header">
       <h2 class="section-title">Daftar Pengguna</h2>
-      <button id="add-user-btn" class="btn-accent" @click="showAddModal = true">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        Tambah Pengguna Baru
-      </button>
+      <div class="header-actions">
+        <button class="btn-outline" @click="showInviteModal = true">
+          Undang Pengguna
+        </button>
+        <button id="add-user-btn" class="btn-accent" @click="showAddModal = true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          Tambah Pengguna Baru
+        </button>
+      </div>
     </div>
+
 
     <div v-if="error" class="table-error">{{ error }}</div>
     <div v-else-if="loading" class="table-error">Memuat pengguna...</div>
@@ -190,17 +238,61 @@ onMounted(loadMembers)
         </div>
       </div>
     </Transition>
+
+    <!-- Invite Modal -->
+    <Transition name="modal">
+      <div v-if="showInviteModal" class="modal-overlay" @click.self="showInviteModal = false">
+        <div class="modal-box">
+          <div class="modal-head">
+            <h3>Undang Pengguna</h3>
+            <button class="modal-close-x" @click="showInviteModal = false">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+          <div class="modal-form">
+            <div class="form-group">
+              <label class="form-label">Cari Pengguna</label>
+              <div class="search-input-wrap">
+                <input v-model="searchQuery" type="text" class="form-input" placeholder="Username atau nama..." @input="handleSearchUsers"/>
+                <span v-if="searchLoading" class="search-loading">Mencari...</span>
+              </div>
+            </div>
+
+            <div v-if="searchResults.length > 0" class="search-results">
+              <div v-for="u in searchResults" :key="u.id" class="search-item">
+                <div class="search-item-info">
+                  <div class="search-item-name">{{ u.name }}</div>
+                  <div class="search-item-username">@{{ u.username }}</div>
+                </div>
+                <button class="btn-primary btn-sm" @click="inviteUser(u.id)">Undang</button>
+              </div>
+            </div>
+            <div v-else-if="searchQuery && !searchLoading" class="notif-empty">Tidak ada pengguna ditemukan.</div>
+
+            <div class="modal-actions">
+              <button type="button" class="btn-outline" @click="showInviteModal = false">Batal</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </AppLayout>
 </template>
+
 
 <style scoped>
 .section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.header-actions {
+  display: flex;
   gap: 12px;
+  flex-wrap: wrap;
 }
 .section-title {
   font-size: 18px;
@@ -307,6 +399,16 @@ onMounted(loadMembers)
 .modal-close-accent:hover { background: var(--color-accent-hover); }
 .confirm-text { font-size: 17px; font-weight: 700; color: var(--color-text); margin-bottom: 28px; }
 .modal-form { display: flex; flex-direction: column; gap: 16px; }
+.search-input-wrap { position: relative; }
+.search-loading { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-size: 12px; color: var(--color-text-light); }
+.search-results { display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 8px; }
+.search-item { display: flex; align-items: center; justify-content: space-between; padding: 8px; border-bottom: 1px solid #f1f5f9; }
+.search-item:last-child { border-bottom: none; }
+.search-item-info { display: flex; flex-direction: column; }
+.search-item-name { font-size: 14px; font-weight: 600; color: var(--color-text); }
+.search-item-username { font-size: 12px; color: var(--color-text-light); }
+.btn-sm { padding: 4px 12px; font-size: 12px; }
+
 .form-group { display: flex; flex-direction: column; gap: 6px; }
 .form-label { font-size: 13px; font-weight: 600; color: var(--color-text); }
 .form-input {

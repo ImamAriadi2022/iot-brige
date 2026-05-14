@@ -1,5 +1,5 @@
 <script setup>
-import { ensureOrganizationId, searchDevices, unwrapApiList } from '@/services/api.js'
+import { ensureOrganizationId, searchDevices, unwrapApiList, getNotifications } from '@/services/api.js'
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
@@ -8,6 +8,8 @@ const router = useRouter()
 const pools = ref([])
 const loading = ref(false)
 const error = ref('')
+const activeNotifsCount = ref(0)
+
 
 function detectType(name) {
   const lower = String(name || '').toLowerCase()
@@ -48,7 +50,21 @@ function goToPool(pool) {
   router.push(`/dashboard/kolam/${pool.id}`)
 }
 
-onMounted(loadDevices)
+async function loadNotificationsCount() {
+  try {
+    const data = await getNotifications()
+    const list = Array.isArray(data) ? data : data?.data || []
+    activeNotifsCount.value = list.length
+  } catch {
+    activeNotifsCount.value = 0
+  }
+}
+
+onMounted(() => {
+  loadDevices()
+  loadNotificationsCount()
+})
+
 </script>
 
 <template>
@@ -56,41 +72,81 @@ onMounted(loadDevices)
     <div v-if="error" class="data-error">{{ error }}</div>
     <div v-else-if="loading" class="data-loading">Memuat perangkat...</div>
     <div v-else-if="pools.length === 0" class="data-empty">Belum ada perangkat.</div>
-    <div v-else class="dashboard-grid">
-      <div
-        v-for="pool in pools"
-        :key="pool.id"
-        class="pool-card"
-        :class="pool.type"
-        @click="goToPool(pool)"
-      >
-        <h3 class="pool-name">{{ pool.name }}</h3>
-        <div class="pool-icon">
-          <svg viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <!-- Fish body -->
-            <ellipse cx="55" cy="50" rx="30" ry="22" fill="white" opacity="0.9"/>
-            <!-- Tail -->
-            <path d="M25 50 L5 30 L5 70 Z" fill="white" opacity="0.9"/>
-            <!-- Eye -->
-            <circle cx="75" cy="45" r="7" fill="white"/>
-            <circle cx="75" cy="45" r="3.5" fill="#1e3a5f"/>
-            <!-- Fin top -->
-            <path d="M45 28 Q55 10 70 28" fill="white" opacity="0.8"/>
-            <!-- Fin bottom -->
-            <path d="M45 72 Q55 88 65 72" fill="white" opacity="0.6"/>
-          </svg>
+    <div v-else>
+      <div class="summary-row">
+        <div class="summary-card">
+          <div class="summary-label">Total Perangkat</div>
+          <div class="summary-val">{{ pools.length }}</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">Notifikasi Aktif</div>
+          <div class="summary-val">{{ activeNotifsCount }}</div>
+        </div>
+      </div>
+
+      <div class="dashboard-grid">
+        <div
+          v-for="pool in pools"
+          :key="pool.id"
+          class="pool-card"
+          :class="pool.type"
+          @click="goToPool(pool)"
+        >
+          <h3 class="pool-name">{{ pool.name }}</h3>
+          <div class="pool-icon">
+            <svg viewBox="0 0 120 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <!-- Fish body -->
+              <ellipse cx="55" cy="50" rx="30" ry="22" fill="white" opacity="0.9"/>
+              <!-- Tail -->
+              <path d="M25 50 L5 30 L5 70 Z" fill="white" opacity="0.9"/>
+              <!-- Eye -->
+              <circle cx="75" cy="45" r="7" fill="white"/>
+              <circle cx="75" cy="45" r="3.5" fill="#1e3a5f"/>
+              <!-- Fin top -->
+              <path d="M45 28 Q55 10 70 28" fill="white" opacity="0.8"/>
+              <!-- Fin bottom -->
+              <path d="M45 72 Q55 88 65 72" fill="white" opacity="0.6"/>
+            </svg>
+          </div>
         </div>
       </div>
     </div>
   </AppLayout>
 </template>
 
+
 <style scoped>
+.summary-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.summary-card {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.summary-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+.summary-val {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--color-text);
+}
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 24px;
 }
+
 
 .data-error,
 .data-loading,

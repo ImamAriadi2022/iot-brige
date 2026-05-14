@@ -1,11 +1,12 @@
 <script setup>
 import {
     ensureOrganizationId,
+    getDeviceReport,
     getWidgetBoxList,
     unwrapApiList,
     upsertWidgetBoxes,
 } from '@/services/api.js'
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
 
@@ -17,6 +18,8 @@ const loading = ref(false)
 const error = ref('')
 const orgId = ref(null)
 const deviceId = ref(route.params.id)
+const pollTimer = ref(null)
+
 
 const newWidget = ref({
   nama: '',
@@ -36,8 +39,10 @@ function mapWidget(w) {
     minValue: w?.min_value ?? w?.minValue ?? w?.min ?? '',
     maxValue: w?.max_value ?? w?.maxValue ?? w?.max ?? '',
     defaultValue: w?.default_value ?? w?.defaultValue ?? w?.default ?? '',
+    currentValue: '--',
   }
 }
+
 
 async function loadWidgets() {
   loading.value = true
@@ -82,7 +87,43 @@ async function addWidget() {
   }
 }
 
-onMounted(loadWidgets)
+async function fetchCurrentValues() {
+  if (!orgId.value || !deviceId.value || widgets.value.length === 0) return
+  const now = new Date()
+  const fiveMinsAgo = new Date(now.getTime() - 5 * 60 * 1000)
+  
+  const promises = widgets.value.map(async (w) => {
+    try {
+      const reportData = await getDeviceReport(orgId.value, deviceId.value, {
+        start: fiveMinsAgo.toISOString(),
+        end: now.toISOString(),
+        pin: w.pin,
+      })
+      const dataList = reportData?.data || []
+      if (dataList.length > 0) {
+        const latest = dataList.sort((a, b) => new Date(b.time) - new Date(a.time))[0]
+        w.currentValue = latest.value
+      } else {
+        w.currentValue = '--'
+      }
+    } catch (err) {
+      w.currentValue = 'Err'
+    }
+  })
+  
+  await Promise.all(promises)
+}
+
+onMounted(async () => {
+  await loadWidgets()
+  fetchCurrentValues()
+  pollTimer.value = setInterval(fetchCurrentValues, 10000) // Poll every 10 seconds
+})
+
+onUnmounted(() => {
+  if (pollTimer.value) clearInterval(pollTimer.value)
+})
+
 </script>
 
 <template>
@@ -101,9 +142,13 @@ onMounted(loadWidgets)
         <div v-else-if="widgets.length === 0" class="widget-empty">Belum ada widget.</div>
         <div v-for="w in widgets" :key="w.id" class="widget-card">
           <div class="widget-title">{{ w.nama }}</div>
-          <div class="widget-meta">Pin: {{ w.pin }} | Satuan: {{ w.satuan || '-' }}</div>
-          <div class="widget-range">Min: {{ w.minValue || '-' }} | Max: {{ w.maxValue || '-' }} | Default: {{ w.defaultValue || '-' }}</div>
+          <div class="widget-value-row">
+            <div class="widget-value">{{ w.currentValue }} <span class="unit">{{ w.satuan }}</span></div>
+          </div>
+          <div class="widget-meta">Pin: {{ w.pin }}</div>
+          <div class="widget-range">Min: {{ w.minValue || '-' }} | Max: {{ w.maxValue || '-' }}</div>
         </div>
+
       </div>
 
       <button class="widget-fab" @click="showAddModal = true" title="Tambah Widget">
@@ -176,7 +221,11 @@ onMounted(loadWidgets)
   gap: 6px;
 }
 .widget-title { font-size: 16px; font-weight: 800; color: var(--color-text); }
+.widget-value-row { display: flex; align-items: baseline; gap: 8px; margin: 8px 0; }
+.widget-value { font-size: 28px; font-weight: 800; color: var(--color-primary); }
+.widget-value .unit { font-size: 14px; font-weight: 600; color: var(--color-text-muted); }
 .widget-meta, .widget-range { font-size: 13px; color: var(--color-text-muted); }
+
 
 .widget-fab {
   position: fixed;

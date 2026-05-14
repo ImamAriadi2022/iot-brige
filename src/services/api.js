@@ -19,6 +19,8 @@ async function request(path, options = {}) {
 
 
   const res = await fetch(`${BASE_URL}${path}`, {
+
+
     ...options,
     headers,
   })
@@ -427,4 +429,7 @@ export function searchUsers(params = {}) {
 export function getUserById(userId) {
   return request(`/users/${userId}`)
 }
+
+
+
 

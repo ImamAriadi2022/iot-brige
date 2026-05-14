@@ -35,15 +35,29 @@ async function handleSave() {
     const formData = new FormData()
     formData.append('username', form.value.nama)
     formData.append('phone_number', form.value.phone)
-    if (avatarFile.value) formData.append('avatar', avatarFile.value)
-    const updated = await updateProfile(formData)
-    const nextUser = {
-      ...user.value,
-      name: updated?.username || form.value.nama,
-      phone: updated?.phone_number || form.value.phone,
-      email: updated?.email || user.value.email,
+    if (avatarFile.value) formData.append('profile_picture', avatarFile.value) // Field name is profile_picture according to spec line 430
+    
+    const res = await updateProfile(formData)
+    const data = res?.data?.user
+    
+    if (data) {
+      const nextUser = {
+        ...user.value,
+        name: data.username || form.value.nama,
+        phone: data.phone_number || form.value.phone,
+        email: data.email || user.value.email,
+        avatar: data.profile_picture || user.value.avatar,
+      }
+      localStorage.setItem('iot_bridge_user', JSON.stringify(nextUser))
+      
+      // Save new token if returned
+      if (res?.data?.token) {
+        localStorage.setItem('iot_bridge_token', res.data.token)
+      }
+      
+      avatarPreview.value = data.profile_picture || avatarPreview.value
     }
-    localStorage.setItem('iot_bridge_user', JSON.stringify(nextUser))
+    
     saved.value = true
     setTimeout(() => { saved.value = false }, 2500)
   } catch (err) {
@@ -53,17 +67,40 @@ async function handleSave() {
   }
 }
 
+
 async function loadProfile() {
   error.value = ''
   try {
-    const data = await getProfile()
-    form.value.nama = data?.username || data?.name || form.value.nama
-    form.value.phone = data?.phone_number || data?.phone || form.value.phone
-    avatarPreview.value = data?.avatar_url || data?.avatar || avatarPreview.value
+    const res = await getProfile()
+    const data = res?.data?.user
+    if (data) {
+      form.value.nama = data.username || form.value.nama
+      form.value.phone = data.phone_number || form.value.phone
+      
+      let avatar = data.profile_picture
+      if (avatar && avatar.startsWith('/')) {
+        avatar = `https://iotbridge.click${avatar}`
+      }
+      avatarPreview.value = avatar || avatarPreview.value
+
+      
+      // Update local storage too if needed
+      const u = localStorage.getItem('iot_bridge_user')
+      const currentUser = u ? JSON.parse(u) : {}
+      localStorage.setItem('iot_bridge_user', JSON.stringify({
+        ...currentUser,
+        name: data.username,
+        email: data.email,
+        phone: data.phone_number,
+        avatar: data.profile_picture,
+        role: data.role
+      }))
+    }
   } catch (err) {
     error.value = err?.message || 'Gagal memuat profil.'
   }
 }
+
 
 onMounted(loadProfile)
 </script>
