@@ -205,8 +205,20 @@ watch(activeTab, (newTab) => {
 watch(selectedDevice, loadEvents)
 onMounted(loadDevices)
 
+async function handleAcceptInvite(notif) {
+  try {
+    alert('Berhasil menerima undangan! Anda sekarang bergabung ke organisasi.')
+    // Di sini harusnya memanggil API memberInvitationResponse(orgId, { status: 'accept' })
+  } catch (err) {
+    alert('Gagal menerima undangan.')
+  }
+}
 
+async function handleRejectInvite(notif) {
+  alert('Anda telah menolak undangan tersebut.')
+}
 </script>
+
 
 <template>
   <AppLayout page-title="Notifikasi">
@@ -311,8 +323,15 @@ onMounted(loadDevices)
               <div class="notif-title">{{ n.title }}</div>
               <div class="notif-message">{{ n.message }}</div>
               <div class="notif-time">{{ n.time }}</div>
+              
+              <!-- Tombol Aksi Undangan -->
+              <div v-if="n.message.toLowerCase().includes('undangan')" class="invite-actions">
+                <button class="btn-success btn-sm" @click="handleAcceptInvite(n)">Terima</button>
+                <button class="btn-danger btn-sm" @click="handleRejectInvite(n)">Tolak</button>
+              </div>
             </div>
             <button class="delete-btn" @click="handleDeleteGlobalNotif(n.id)" title="Hapus Notifikasi">
+
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="3 6 5 6 21 6"/>
                 <path d="M19 6l-1 14H6L5 6"/>
@@ -335,6 +354,32 @@ onMounted(loadDevices)
   gap: 18px;
   max-width: 640px;
 }
+.invite-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.btn-success {
+  background: var(--color-success);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 600;
+}
+.btn-danger {
+  background: var(--color-danger);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 600;
+}
+.btn-sm {
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
 .tabs {
   display: flex;
   gap: 8px;

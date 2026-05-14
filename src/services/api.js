@@ -152,6 +152,9 @@ export function updateProfile(formData) {
 
 
 
+
+
+
 /**
  * PATCH /auth/email
  * @param {{ new_email: string }} body
@@ -441,7 +444,8 @@ export function unwrapApiList(data) {
 // ─────────────────────────────────────────────────────────────
 
 export function searchUsers(params = {}) {
-  return request(`/users/search${toQuery(params)}`)
+  const query = new URLSearchParams(params).toString()
+  return request(`/users/search?${query}`)
 }
 
 export function getUserById(userId) {

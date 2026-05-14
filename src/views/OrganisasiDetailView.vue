@@ -4,8 +4,10 @@ import {
   updateOrganizationProfile,
   getOrganizationMembers,
   createLocalMember,
-  searchOrganizationMembers,
-  getProfile
+  getProfile,
+  memberInvitation,
+  searchUsers,
+  changeMemberRoles
 } from '@/services/api.js'
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -32,9 +34,10 @@ const error = ref('')
 const isEditing = ref(false) // Mode Edit
 const showSuccessModal = ref(false)
 
-
 const members = ref([])
 const searchMemberQuery = ref('')
+const searchResults = ref([]) // Hasil pencarian global
+const searching = ref(false)
 const showAddMemberModal = ref(false)
 const newMember = ref({
   name: '',
@@ -75,7 +78,6 @@ async function handleSave() {
     await updateOrganizationProfile(organizationId.value, formData)
     showSuccessModal.value = true
     isEditing.value = false // Kembali ke mode lihat
-
   } catch (err) {
     error.value = err?.message || 'Gagal memperbarui profil organisasi.'
   } finally {
@@ -97,30 +99,20 @@ async function loadOrganization() {
     form.value.lokasi = data?.location || data?.lokasi || ''
     charCount.value = form.value.deskripsi.length
     logoPreview.value = data?.organization_picture || data?.logo_url || data?.logo || logoPreview.value
-
     
     await loadMembers()
     
     // Cari admin pertama untuk mengisi email dan telepon
     const admin = members.value.find(m => m.role === 'admin' || m.role === 'Admin')
-    // eslint-disable-next-line no-console
-    console.log('[loadOrganization] Found Admin in list:', admin)
     
-    // Akali dengan mengambil data profil pengguna saat ini (asumsi user saat ini adalah admin/pengelola)
+    // Akali dengan mengambil data profil pengguna saat ini
     try {
       const myProfileRes = await getProfile()
       const myProfile = myProfileRes?.data?.user || myProfileRes?.user || myProfileRes
-      // eslint-disable-next-line no-console
-      console.log('[loadOrganization] My Profile Data:', myProfile)
       
       form.value.email = myProfile?.email || 'Tidak ada email'
       form.value.telepon = myProfile?.phone_number || myProfile?.telepon || 'Tidak ada nomor telepon'
     } catch (e) {
-
-      // eslint-disable-next-line no-console
-      console.error('[loadOrganization] Failed to get my profile:', e)
-      
-      // Jika gagal, gunakan data dari list member jika ada
       if (admin) {
         form.value.email = admin.email || 'Tidak ada email'
         form.value.telepon = admin.phone_number || admin.telepon || 'Tidak ada nomor telepon'
@@ -132,8 +124,6 @@ async function loadOrganization() {
 
   } catch (err) {
     error.value = err?.message || 'Gagal memuat profil organisasi.'
-    // eslint-disable-next-line no-console
-    console.error('[loadOrganization] Main Error:', err)
   }
 }
 
@@ -148,12 +138,51 @@ async function loadMembers() {
 }
 
 async function handleSearchMembers() {
+  if (!searchMemberQuery.value.trim()) {
+    searchResults.value = []
+    return
+  }
+  searching.value = true
   try {
-    const data = await searchOrganizationMembers(organizationId.value, { query: searchMemberQuery.value })
-    members.value = data?.data || data || []
+    const data = await searchUsers({ identity: searchMemberQuery.value })
+    searchResults.value = data?.data || data || []
+    
+    if (searchResults.value.length === 0) {
+      alert('Tidak ada pengguna yang ditemukan dengan kata kunci tersebut.')
+    }
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('Gagal mencari anggota:', err)
+    alert('Gagal mencari anggota: ' + (err?.message || 'Error tidak diketahui'))
+  } finally {
+    searching.value = false
+  }
+}
+
+async function handleInvite(user) {
+  try {
+    const payload = { user_id: String(user.id) }
+    await memberInvitation(organizationId.value, payload)
+    alert('Undangan berhasil dikirim ke ' + (user.name || user.username))
+    
+    searchMemberQuery.value = ''
+    searchResults.value = []
+  } catch (err) {
+    alert('Gagal mengirim undangan: ' + (err?.message || 'Error tidak diketahui'))
+  }
+}
+
+async function handleChangeRole(member) {
+  try {
+    const payload = {
+      user_id: String(member.id),
+      role: member.role
+    }
+    await changeMemberRoles(organizationId.value, payload)
+    alert(`Berhasil mengubah role ${member.name || member.username} menjadi ${member.role}`)
+  } catch (err) {
+    alert('Gagal mengubah role: ' + (err?.message || 'Error tidak diketahui'))
+    await loadMembers() // Reload to revert UI
   }
 }
 
@@ -288,9 +317,37 @@ onMounted(loadOrganization)
         </div>
 
         <div class="search-bar">
-          <input v-model="searchMemberQuery" type="text" class="form-input" placeholder="Cari anggota..." @input="handleSearchMembers" />
+          <div class="search-input-group">
+            <input 
+              v-model="searchMemberQuery" 
+              type="text" 
+              class="form-input" 
+              placeholder="Cari & undang anggota..." 
+              @keyup.enter="handleSearchMembers" 
+            />
+            <button class="btn-primary" @click="handleSearchMembers" :disabled="searching">
+              <span v-if="searching" class="spinner"></span>
+              {{ searching ? 'Mencari...' : 'Cari' }}
+            </button>
+          </div>
         </div>
 
+        <!-- Search Results (Hasil Pencarian Global) -->
+        <div v-if="searchResults.length > 0" class="search-results-box">
+          <h4 class="sub-title">Hasil Pencarian (Global)</h4>
+          <div class="members-list">
+            <div v-for="u in searchResults" :key="u.id" class="member-card">
+              <div class="member-info">
+                <div class="member-name">{{ u.name || u.username }}</div>
+                <div class="member-email">{{ u.email }}</div>
+              </div>
+              <button class="btn-secondary btn-sm" @click="handleInvite(u)">Undang</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Existing Members -->
+        <h4 class="sub-title" style="margin-top: 16px;">Daftar Anggota Saat Ini</h4>
         <div class="members-list">
           <div v-if="members.length === 0" class="empty-members">Belum ada anggota.</div>
           <div v-for="m in members" :key="m.id" class="member-card">
@@ -298,7 +355,13 @@ onMounted(loadOrganization)
               <div class="member-name">{{ m.name || m.username }}</div>
               <div class="member-email">{{ m.email }}</div>
             </div>
-            <div class="member-role">{{ m.role }}</div>
+            <div class="member-role-select">
+              <select v-model="m.role" @change="handleChangeRole(m)" class="role-dropdown">
+                <option value="Admin">Admin</option>
+                <option value="Operator">Operator</option>
+                <option value="Viewer">Viewer</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -323,7 +386,6 @@ onMounted(loadOrganization)
 
       <!-- Add Member Modal -->
       <Transition name="modal">
-
         <div v-if="showAddMemberModal" class="modal-overlay" @click.self="showAddMemberModal = false">
           <div class="modal-box">
             <div class="modal-head">
@@ -349,6 +411,7 @@ onMounted(loadOrganization)
 .org-page { display: flex; flex-direction: column; gap: 24px; }
 .section-head { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
 .section-title { font-size: 18px; font-weight: 700; color: var(--color-text); }
+.sub-title { font-size: 14px; font-weight: 700; color: var(--color-text); margin-bottom: 8px; }
 
 .back-btn {
   display: flex; align-items: center; gap: 8px;
@@ -449,6 +512,7 @@ onMounted(loadOrganization)
   display: flex; align-items: center; gap: 6px;
 }
 .btn-secondary:hover { background: var(--color-primary); color: white; }
+.btn-sm { padding: 4px 8px; font-size: 12px; }
 
 .btn-text { padding: 10px 16px; background: none; border: none; font-size: 14px; font-weight: 600; color: var(--color-text-muted); cursor: pointer; }
 
@@ -462,6 +526,8 @@ onMounted(loadOrganization)
 }
 .members-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .search-bar { margin-bottom: 16px; }
+.search-input-group { display: flex; gap: 8px; }
+.search-input-group .form-input { flex: 1; }
 .members-list { display: flex; flex-direction: column; gap: 12px; }
 .empty-members { text-align: center; color: var(--color-text-muted); padding: 20px; }
 .member-card {
@@ -475,6 +541,28 @@ onMounted(loadOrganization)
 .member-name { font-weight: 600; color: var(--color-text); }
 .member-email { font-size: 13px; color: var(--color-text-muted); }
 .member-role { font-size: 12px; padding: 4px 8px; background: #eef4ff; color: var(--color-primary); border-radius: 12px; font-weight: 600; }
+
+.search-results-box {
+  background: #f8fafc;
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  margin-bottom: 16px;
+}
+
+.role-dropdown {
+  padding: 4px 8px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--color-text);
+  background: white;
+  cursor: pointer;
+  outline: none;
+}
+.role-dropdown:focus {
+  border-color: var(--color-primary);
+}
 
 /* Modal styles */
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 999; }
@@ -491,6 +579,13 @@ onMounted(loadOrganization)
 
 .modal-enter-active, .modal-leave-active { transition: opacity 0.3s, transform 0.3s; }
 .modal-enter-from, .modal-leave-to { opacity: 0; transform: scale(0.95); }
+
+.spinner {
+  width: 14px; height: 14px;
+  border: 2px solid white; border-top-color: transparent;
+  border-radius: 50%; animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 900px) {
   .org-grid { grid-template-columns: 1fr; }
