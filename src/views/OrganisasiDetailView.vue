@@ -7,7 +7,8 @@ import {
   getProfile,
   memberInvitation,
   searchUsers,
-  changeMemberRoles
+  changeMemberRoles,
+  deleteMember
 } from '@/services/api.js'
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -35,6 +36,7 @@ const isEditing = ref(false) // Mode Edit
 const showSuccessModal = ref(false)
 
 const members = ref([])
+const currentUserId = ref(null)
 const searchMemberQuery = ref('')
 const searchResults = ref([]) // Hasil pencarian global
 const searching = ref(false)
@@ -91,9 +93,6 @@ async function loadOrganization() {
     const res = await getOrganizationProfile(organizationId.value)
     const data = res?.data || res
     
-    // eslint-disable-next-line no-console
-    console.log('[loadOrganization] Org Profile Data:', data)
-    
     form.value.nama = data?.name || data?.nama || initialName
     form.value.deskripsi = data?.description || data?.deskripsi || ''
     form.value.lokasi = data?.location || data?.lokasi || ''
@@ -109,6 +108,7 @@ async function loadOrganization() {
     try {
       const myProfileRes = await getProfile()
       const myProfile = myProfileRes?.data?.user || myProfileRes?.user || myProfileRes
+      currentUserId.value = myProfile?.id
       
       form.value.email = myProfile?.email || 'Tidak ada email'
       form.value.telepon = myProfile?.phone_number || myProfile?.telepon || 'Tidak ada nomor telepon'
@@ -151,8 +151,6 @@ async function handleSearchMembers() {
       alert('Tidak ada pengguna yang ditemukan dengan kata kunci tersebut.')
     }
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('Gagal mencari anggota:', err)
     alert('Gagal mencari anggota: ' + (err?.message || 'Error tidak diketahui'))
   } finally {
     searching.value = false
@@ -186,6 +184,45 @@ async function handleChangeRole(member) {
   }
 }
 
+async function handleLeaveOrganization() {
+  // Cari user saat ini di dalam daftar anggota
+  const adminMembers = members.value.filter(m => m.role?.toLowerCase() === 'admin' || m.role === 'Admin')
+  
+  // Jika jumlah admin hanya 1, dan user saat ini adalah admin tersebut
+  // Kita bisa mengecek apakah ID atau Email user saat ini cocok dengan satu-satunya admin itu
+  const theOnlyAdmin = adminMembers[0]
+  
+  // Ambil profil lagi untuk memastikan data terbaru
+  let isOnlyAdmin = false
+  try {
+    const myProfileRes = await getProfile()
+    const myProfile = myProfileRes?.data?.user || myProfileRes?.user || myProfileRes
+    
+    if (theOnlyAdmin) {
+      isOnlyAdmin = (String(myProfile.id) === String(theOnlyAdmin.id)) || (myProfile.email === theOnlyAdmin.email)
+    }
+  } catch (e) {
+    // Fallback jika API gagal, asumsikan dari data yang di-load sebelumnya
+    isOnlyAdmin = adminMembers.length <= 1
+  }
+
+  if (isOnlyAdmin && adminMembers.length <= 1) {
+    alert('Anda tidak bisa keluar organisasi karena Anda adalah satu-satunya admin. Silakan tunjuk admin lain terlebih dahulu.')
+    return
+  }
+
+  
+  if (!confirm('Apakah Anda yakin ingin keluar dari organisasi ini?')) return
+  
+  try {
+    await deleteMember(organizationId.value, currentUserId.value)
+    alert('Anda telah berhasil keluar dari organisasi.')
+    router.push('/organisasi')
+  } catch (err) {
+    alert('Gagal keluar organisasi: ' + (err?.message || 'Error tidak diketahui'))
+  }
+}
+
 async function handleAddLocalMember() {
   error.value = ''
   try {
@@ -204,12 +241,23 @@ onMounted(loadOrganization)
 <template>
   <AppLayout :page-title="form.nama || 'Detail Organisasi'">
     <div class="org-page">
-      <button class="back-btn" @click="router.push('/organisasi')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M19 12H5M12 19l-7-7 7-7"/>
-        </svg>
-        Kembali ke Daftar
-      </button>
+      <div class="top-row">
+        <button class="back-btn" @click="router.push('/organisasi')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+          Kembali ke Daftar
+        </button>
+        
+        <button class="btn-danger-outline" @click="handleLeaveOrganization">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Keluar Organisasi
+        </button>
+      </div>
 
       <div class="section-head">
         <h2 class="section-title">Profile Organisasi</h2>
@@ -409,6 +457,7 @@ onMounted(loadOrganization)
 
 <style scoped>
 .org-page { display: flex; flex-direction: column; gap: 24px; }
+.top-row { display: flex; justify-content: space-between; align-items: center; }
 .section-head { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
 .section-title { font-size: 18px; font-weight: 700; color: var(--color-text); }
 .sub-title { font-size: 14px; font-weight: 700; color: var(--color-text); margin-bottom: 8px; }
@@ -419,6 +468,14 @@ onMounted(loadOrganization)
   font-size: 14px; font-weight: 600; cursor: pointer;
   padding: 0; width: fit-content;
 }
+
+.btn-danger-outline {
+  padding: 8px 16px; background: white; color: var(--color-danger);
+  border: 1.5px solid var(--color-danger); border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: 700; cursor: pointer; transition: var(--transition);
+  display: flex; align-items: center; gap: 6px;
+}
+.btn-danger-outline:hover { background: var(--color-danger); color: white; }
 
 .org-grid {
   display: grid;
@@ -461,10 +518,6 @@ onMounted(loadOrganization)
 .form-input:disabled { background: #f1f5f9; cursor: not-allowed; color: var(--color-text-muted); }
 
 .textarea { resize: vertical; min-height: 120px; }
-
-.select-wrap { position: relative; }
-.select-wrap .form-input { appearance: none; padding-right: 36px; cursor: pointer; }
-.select-chevron { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--color-text-muted); pointer-events: none; }
 
 .logo-upload {
   border: 2px dashed var(--color-border);
@@ -540,7 +593,6 @@ onMounted(loadOrganization)
 }
 .member-name { font-weight: 600; color: var(--color-text); }
 .member-email { font-size: 13px; color: var(--color-text-muted); }
-.member-role { font-size: 12px; padding: 4px 8px; background: #eef4ff; color: var(--color-primary); border-radius: 12px; font-weight: 600; }
 
 .search-results-box {
   background: #f8fafc;
