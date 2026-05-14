@@ -2,13 +2,15 @@
 import {
   createNotificationEvent,
   deleteNotificationEvent,
-  ensureOrganizationId,
+  getOrganizationsList,
+  getDevices,
   getNotificationEvents,
   getNotifications,
   deleteNotificationById,
   searchDevices,
   unwrapApiList,
 } from '@/services/api.js'
+
 import { getNotificationMode, isLocalNotificationEnabled, showBrowserNotification } from '@/utils/notifications.js'
 import { onMounted, ref, watch } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
@@ -52,15 +54,30 @@ async function loadDevices() {
   error.value = ''
   loading.value = true
   try {
-    orgId.value = await ensureOrganizationId()
-    if (!orgId.value) {
-      error.value = 'Organisasi belum tersedia untuk akun ini.'
-      return
+    const orgsData = await getOrganizationsList()
+    const orgs = unwrapApiList(orgsData)
+    
+    let allDevices = []
+    
+    for (const org of orgs) {
+      const oid = org?.id || org?.organization_id || org?._id
+      if (!oid) continue
+      
+      try {
+        let devData
+        try {
+          devData = await getDevices(oid)
+        } catch (e) {
+          devData = await searchDevices(oid, { name: '' })
+        }
+        const list = unwrapApiList(devData)
+        allDevices.push(...list.map(d => ({ ...mapDevice(d), orgId: oid })))
+      } catch (e) {
+        // Abaikan error untuk organisasi tertentu
+      }
     }
-    const data = await searchDevices(orgId.value)
-    const list = unwrapApiList(data)
-    const mapped = list.map(mapDevice).filter(d => d.id)
-    devices.value = [{ id: '', label: 'Pilih perangkat...' }, ...mapped]
+    
+    devices.value = [{ id: '', label: 'Pilih perangkat...' }, ...allDevices.filter(d => d.id)]
   } catch (err) {
     error.value = err?.message || 'Gagal memuat perangkat.'
   } finally {
@@ -68,15 +85,26 @@ async function loadDevices() {
   }
 }
 
+
 async function loadEvents() {
-  if (!selectedDevice.value || !orgId.value) {
+  if (!selectedDevice.value) {
     notifications.value = []
     return
   }
   loading.value = true
   error.value = ''
   try {
-    const data = await getNotificationEvents(orgId.value, selectedDevice.value)
+    const selectedDev = devices.value.find(d => d.id === selectedDevice.value)
+    const targetOrgId = selectedDev?.orgId
+    
+    if (!targetOrgId) {
+      error.value = 'Organisasi perangkat tidak ditemukan.'
+      loading.value = false
+      return
+    }
+    
+    const data = await getNotificationEvents(targetOrgId, selectedDevice.value)
+
     const list = unwrapApiList(data)
     const mapped = list.map(mapEvent)
     if (getNotificationMode() === 'Aktif' && isLocalNotificationEnabled()) {
@@ -96,12 +124,22 @@ async function loadEvents() {
 
 async function addEvent() {
   if (!newEvent.value.title || !newEvent.value.pin) return
-  if (!orgId.value || !selectedDevice.value) {
-    error.value = 'Organisasi atau perangkat belum dipilih.'
+  if (!selectedDevice.value) {
+    error.value = 'Perangkat belum dipilih.'
     return
   }
+  
+  const selectedDev = devices.value.find(d => d.id === selectedDevice.value)
+  const targetOrgId = selectedDev?.orgId
+  
+  if (!targetOrgId) {
+    error.value = 'Organisasi perangkat tidak ditemukan.'
+    return
+  }
+  
   try {
-    await createNotificationEvent(orgId.value, selectedDevice.value, {
+    await createNotificationEvent(targetOrgId, selectedDevice.value, {
+
       title: newEvent.value.title,
       pin: newEvent.value.pin,
       condition: newEvent.value.condition,
