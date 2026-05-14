@@ -4,7 +4,8 @@ import {
   updateOrganizationProfile,
   getOrganizationMembers,
   createLocalMember,
-  searchOrganizationMembers
+  searchOrganizationMembers,
+  getProfile
 } from '@/services/api.js'
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -13,14 +14,14 @@ import AppLayout from '../components/AppLayout.vue'
 const route = useRoute()
 const router = useRouter()
 const organizationId = ref(route.params.id)
+const initialName = route.query.name || ''
 
 const form = ref({
-  nama: '',
+  nama: initialName,
   deskripsi: '',
   email: '',
   telepon: '',
   lokasi: '',
-  timezone: '',
 })
 const charCount = ref(0)
 const logoPreview = ref(null)
@@ -28,6 +29,7 @@ const logoFile = ref(null)
 const saving = ref(false)
 const saved = ref(false)
 const error = ref('')
+const isEditing = ref(false) // Mode Edit
 
 const members = ref([])
 const searchMemberQuery = ref('')
@@ -44,6 +46,7 @@ function handleDeskripsi(e) {
 
 function handleLogoDrop(e) {
   e.preventDefault()
+  if (!isEditing.value) return
   const file = e.dataTransfer?.files[0] || e.target.files[0]
   if (file) previewLogo(file)
 }
@@ -69,6 +72,7 @@ async function handleSave() {
 
     await updateOrganizationProfile(organizationId.value, formData)
     saved.value = true
+    isEditing.value = false // Kembali ke mode lihat
     setTimeout(() => { saved.value = false }, 2500)
   } catch (err) {
     error.value = err?.message || 'Gagal memperbarui profil organisasi.'
@@ -77,24 +81,57 @@ async function handleSave() {
   }
 }
 
-const timezones = ['WIB (UTC+7)', 'WITA (UTC+8)', 'WIT (UTC+9)', 'UTC+0']
-
 async function loadOrganization() {
   error.value = ''
   try {
-    const data = await getOrganizationProfile(organizationId.value)
-    form.value.nama = data?.name || data?.nama || ''
+    const res = await getOrganizationProfile(organizationId.value)
+    const data = res?.data || res
+    
+    // eslint-disable-next-line no-console
+    console.log('[loadOrganization] Org Profile Data:', data)
+    
+    form.value.nama = data?.name || data?.nama || initialName
     form.value.deskripsi = data?.description || data?.deskripsi || ''
-    form.value.email = data?.email || ''
-    form.value.telepon = data?.phone_number || data?.telepon || ''
     form.value.lokasi = data?.location || data?.lokasi || ''
-    form.value.timezone = data?.timezone || ''
     charCount.value = form.value.deskripsi.length
-    logoPreview.value = data?.logo_url || data?.logo || logoPreview.value
+    logoPreview.value = data?.organization_picture || data?.logo_url || data?.logo || logoPreview.value
+
     
     await loadMembers()
+    
+    // Cari admin pertama untuk mengisi email dan telepon
+    const admin = members.value.find(m => m.role === 'admin' || m.role === 'Admin')
+    // eslint-disable-next-line no-console
+    console.log('[loadOrganization] Found Admin in list:', admin)
+    
+    // Akali dengan mengambil data profil pengguna saat ini (asumsi user saat ini adalah admin/pengelola)
+    try {
+      const myProfileRes = await getProfile()
+      const myProfile = myProfileRes?.data?.user || myProfileRes?.user || myProfileRes
+      // eslint-disable-next-line no-console
+      console.log('[loadOrganization] My Profile Data:', myProfile)
+      
+      form.value.email = myProfile?.email || 'Tidak ada email'
+      form.value.telepon = myProfile?.phone_number || myProfile?.telepon || 'Tidak ada nomor telepon'
+    } catch (e) {
+
+      // eslint-disable-next-line no-console
+      console.error('[loadOrganization] Failed to get my profile:', e)
+      
+      // Jika gagal, gunakan data dari list member jika ada
+      if (admin) {
+        form.value.email = admin.email || 'Tidak ada email'
+        form.value.telepon = admin.phone_number || admin.telepon || 'Tidak ada nomor telepon'
+      } else {
+        form.value.email = 'Belum ada admin'
+        form.value.telepon = 'Belum ada admin'
+      }
+    }
+
   } catch (err) {
     error.value = err?.message || 'Gagal memuat profil organisasi.'
+    // eslint-disable-next-line no-console
+    console.error('[loadOrganization] Main Error:', err)
   }
 }
 
@@ -143,7 +180,16 @@ onMounted(loadOrganization)
         Kembali ke Daftar
       </button>
 
-      <h2 class="section-title">Profile Organisasi</h2>
+      <div class="section-head">
+        <h2 class="section-title">Profile Organisasi</h2>
+        <button v-if="!isEditing" class="btn-secondary" @click="isEditing = true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+          Edit Profil
+        </button>
+      </div>
 
       <div v-if="error" class="form-error">{{ error }}</div>
 
@@ -153,7 +199,7 @@ onMounted(loadOrganization)
           <div class="form-group">
             <label class="form-label">Nama Organisasi<span class="required">*</span></label>
             <input v-model="form.nama" type="text" class="form-input" readonly/>
-            <p class="form-hint">*Nama Organisasi yang sudah terdaftar tidak bisa diubah. Jika terdapat Kesalahan dalam nama organisasi silahkan hubungi admin sistem</p>
+            <p class="form-hint">*Nama Organisasi yang sudah terdaftar tidak bisa diubah.</p>
           </div>
 
           <div class="form-group">
@@ -165,36 +211,26 @@ onMounted(loadOrganization)
               maxlength="500"
               placeholder="Tulis deskripsi organisasi..."
               @input="handleDeskripsi"
+              :readonly="!isEditing"
             ></textarea>
             <p class="char-count">{{ charCount }} / 500</p>
           </div>
 
           <div class="form-group">
-            <label class="form-label">Alamat Email<span class="required">*</span></label>
-            <input v-model="form.email" type="email" class="form-input" placeholder="email@organisasi.com"/>
+            <label class="form-label">Alamat Email <span class="optional">(Admin)</span></label>
+            <input v-model="form.email" type="email" class="form-input" readonly placeholder="Belum ada admin"/>
+            <p class="form-hint">*Menggunakan email Admin Organisasi</p>
           </div>
 
           <div class="form-group">
-            <label class="form-label">Nomor Telepon<span class="required">*</span></label>
-            <input v-model="form.telepon" type="tel" class="form-input" placeholder="08xxxxxxxxxx"/>
+            <label class="form-label">Nomor Telepon <span class="optional">(Admin)</span></label>
+            <input v-model="form.telepon" type="tel" class="form-input" readonly placeholder="Belum ada admin"/>
+            <p class="form-hint">*Menggunakan nomor telepon Admin Organisasi</p>
           </div>
 
           <div class="form-group">
             <label class="form-label">Lokasi<span class="required">*</span></label>
-            <input v-model="form.lokasi" type="text" class="form-input" placeholder="Alamat lokasi"/>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Timezone<span class="required">*</span></label>
-            <div class="select-wrap">
-              <select v-model="form.timezone" class="form-input">
-                <option value="" disabled>Pilih timezone</option>
-                <option v-for="tz in timezones" :key="tz" :value="tz">{{ tz }}</option>
-              </select>
-              <svg class="select-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M6 9l6 6 6-6"/>
-              </svg>
-            </div>
+            <input v-model="form.lokasi" type="text" class="form-input" placeholder="Alamat lokasi" :readonly="!isEditing"/>
           </div>
         </div>
 
@@ -204,9 +240,10 @@ onMounted(loadOrganization)
             <label class="form-label">Logo <span class="optional">(Opsional)</span></label>
             <div
               class="logo-upload"
+              :class="{ 'readonly-upload': !isEditing }"
               @drop="handleLogoDrop"
               @dragover.prevent
-              @click="$refs.logoInput.click()"
+              @click="isEditing ? $refs.logoInput.click() : null"
             >
               <img v-if="logoPreview" :src="logoPreview" alt="Logo preview" class="logo-preview"/>
               <template v-else>
@@ -216,26 +253,28 @@ onMounted(loadOrganization)
                   <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
                 </svg>
                 <p class="upload-title">Unggah Logo</p>
-                <p class="upload-hint">Unggah dari komputer atau tarik dan lepaskan file logonya dengan format .png, .jpg, .jpeg. Minimal dengan ukuran 2 MB.</p>
+                <p class="upload-hint">Format .png, .jpg, .jpeg. Maksimal 2 MB.</p>
               </template>
               <input ref="logoInput" type="file" accept="image/*" style="display:none" @change="e => previewLogo(e.target.files[0])"/>
             </div>
           </div>
 
-          <div class="save-row">
-            <Transition name="fade">
-              <span v-if="saved" class="saved-msg">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
-                Tersimpan!
-              </span>
-            </Transition>
+          <div class="save-row" v-if="isEditing">
+            <button class="btn-text" @click="isEditing = false">Batal</button>
             <button id="org-save-btn" class="btn-primary" @click="handleSave" :disabled="saving">
               <span v-if="saving" class="spinner"></span>
               {{ saving ? 'Menyimpan...' : 'Perbarui' }}
             </button>
           </div>
+          
+          <Transition name="fade">
+            <div v-if="saved" class="saved-msg" style="justify-content: flex-end;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              Profil diperbarui!
+            </div>
+          </Transition>
         </div>
       </div>
 
@@ -287,6 +326,7 @@ onMounted(loadOrganization)
 
 <style scoped>
 .org-page { display: flex; flex-direction: column; gap: 24px; }
+.section-head { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
 .section-title { font-size: 18px; font-weight: 700; color: var(--color-text); }
 
 .back-btn {
@@ -334,6 +374,7 @@ onMounted(loadOrganization)
 }
 .form-input:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(30,58,95,0.08); }
 .form-input[readonly] { background: #f1f5f9; cursor: not-allowed; color: var(--color-text-muted); }
+.form-input:disabled { background: #f1f5f9; cursor: not-allowed; color: var(--color-text-muted); }
 
 .textarea { resize: vertical; min-height: 120px; }
 
@@ -356,7 +397,8 @@ onMounted(loadOrganization)
   min-height: 200px;
   justify-content: center;
 }
-.logo-upload:hover { border-color: var(--color-primary); background: #eef4ff; }
+.logo-upload:hover:not(.readonly-upload) { border-color: var(--color-primary); background: #eef4ff; }
+.logo-upload.readonly-upload { cursor: not-allowed; opacity: 0.8; }
 .upload-title { font-size: 15px; font-weight: 700; color: var(--color-text); }
 .upload-hint { font-size: 12px; color: var(--color-text-muted); line-height: 1.6; }
 .logo-preview { width: 100%; max-height: 180px; object-fit: contain; border-radius: var(--radius-sm); }
@@ -370,6 +412,7 @@ onMounted(loadOrganization)
 .saved-msg {
   display: flex; align-items: center; gap: 6px;
   color: var(--color-success); font-size: 13px; font-weight: 600;
+  margin-top: 8px;
 }
 .btn-primary {
   padding: 10px 28px; background: var(--color-primary); color: white;
@@ -377,8 +420,16 @@ onMounted(loadOrganization)
   cursor: pointer; transition: var(--transition); display: flex; align-items: center; gap: 8px;
 }
 .btn-primary:hover { background: var(--color-primary-dark); }
-.spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.8s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
+
+.btn-secondary {
+  padding: 8px 16px; background: white; color: var(--color-primary);
+  border: 1.5px solid var(--color-primary); border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: 700; cursor: pointer; transition: var(--transition);
+  display: flex; align-items: center; gap: 6px;
+}
+.btn-secondary:hover { background: var(--color-primary); color: white; }
+
+.btn-text { padding: 10px 16px; background: none; border: none; font-size: 14px; font-weight: 600; color: var(--color-text-muted); cursor: pointer; }
 
 /* Members Section */
 .members-section {
@@ -410,7 +461,6 @@ onMounted(loadOrganization)
 .modal-head h3 { font-size: 16px; font-weight: 700; color: var(--color-text); }
 .modal-form { display: flex; flex-direction: column; gap: 12px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
-.btn-text { padding: 10px 16px; background: none; border: none; font-size: 14px; font-weight: 600; color: var(--color-text-muted); cursor: pointer; }
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
@@ -423,6 +473,8 @@ onMounted(loadOrganization)
   .org-right { order: -1; }
 }
 @media (max-width: 600px) {
+  .section-head { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .btn-secondary { width: 100%; justify-content: center; }
   .save-row { justify-content: stretch; }
   .btn-primary { width: 100%; justify-content: center; }
 }

@@ -106,18 +106,26 @@ async function loadGlobalNotifications() {
     const data = await getNotifications()
     const list = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : Array.isArray(data?.items) ? data.items : Array.isArray(data?.results) ? data.results : []
     const mapped = list.map(mapGlobalNotification).filter((item) => item.id)
-    const localNotificationEnabled = getNotificationMode() === 'Aktif' && isLocalNotificationEnabled()
+    
+    const mode = getNotificationMode()
+    const localNotificationEnabled = mode === 'Aktif' && isLocalNotificationEnabled()
+    
+    // eslint-disable-next-line no-console
+    console.log('[loadGlobalNotifications] Mode:', mode, 'LocalEnabled:', localNotificationEnabled, 'Count:', mapped.length)
 
     mapped.forEach((item) => {
       if (!notifSeenIds.has(item.id)) {
         notifSeenIds.add(item.id)
         if (localNotificationEnabled) {
+          // eslint-disable-next-line no-console
+          console.log('[loadGlobalNotifications] Showing Browser Notif:', item.title)
           showBrowserNotification(item.title, item.message)
         }
       }
     })
 
     globalNotifications.value = mapped
+
   } catch (err) {
     notifError.value = err?.message || 'Gagal memuat notifikasi.'
   } finally {

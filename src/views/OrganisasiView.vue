@@ -61,7 +61,8 @@ onMounted(loadOrgs)
         <div v-if="loading" class="loading-text">Memuat...</div>
         <div v-else-if="organizations.length === 0" class="empty-list">Belum ada organisasi yang terdaftar.</div>
         <div v-else class="org-grid-list">
-          <div v-for="org in organizations" :key="org.id" class="org-card" @click="router.push('/organisasi/' + org.id)">
+          <div v-for="org in organizations" :key="org.id" class="org-card" @click="router.push({ path: '/organisasi/' + org.id, query: { name: org.name || org.nama } })">
+
             <div class="org-card-content">
               <div class="org-name">{{ org.name || org.nama }}</div>
               <div class="org-meta">{{ org.description || 'Tidak ada deskripsi' }}</div>

@@ -1,6 +1,6 @@
 <script setup>
 import { ensureLocalNotificationPermission, getNotificationMode, setNotificationMode } from '@/utils/notifications.js'
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 
 const notifikasi = ref(getNotificationMode())
@@ -11,6 +11,13 @@ const error = ref('')
 const notifOptions = ['Aktif', 'Nonaktif']
 
 const permissionStatus = ref(typeof Notification !== 'undefined' ? Notification.permission : 'default')
+
+// Auto-save when dropdown changes
+watch(notifikasi, (newVal) => {
+  setNotificationMode(newVal)
+  saved.value = true
+  setTimeout(() => { saved.value = false }, 1500)
+})
 
 async function handleSave() {
   error.value = ''
@@ -31,6 +38,7 @@ async function handleSave() {
     saving.value = false
   }
 }
+
 
 async function requestPermission() {
   if (typeof Notification === 'undefined') return

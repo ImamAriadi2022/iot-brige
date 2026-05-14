@@ -24,6 +24,7 @@ export async function ensureLocalNotificationPermission() {
 export function showBrowserNotification(title, body) {
   if (!('Notification' in window)) return false
   if (Notification.permission !== 'granted') return false
+  if (!isLocalNotificationEnabled()) return false
   new Notification(title || 'Notifikasi', {
     body: body || '',
   })
