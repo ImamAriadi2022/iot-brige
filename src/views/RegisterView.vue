@@ -1,7 +1,7 @@
 <script setup>
+import { register } from '@/services/api.js'
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { register } from '@/services/api.js'
 
 const router = useRouter()
 const form = ref({ username: '', email: '', phone_number: '', password: '' })
@@ -63,7 +63,6 @@ function closePopup() {
 
   <div class="auth-page">
     <div class="auth-left">
-      <div class="auth-blob"></div>
       <div class="auth-illustration">
         <img src="@/assets/animasi-page-first.png" alt="Ilustrasi Daftar" class="illust-img" />
       </div>
@@ -143,78 +142,204 @@ function closePopup() {
 </template>
 
 <style scoped>
-.auth-page { min-height: 100vh; display: flex; }
-.auth-left {
-  width: 50%; background: var(--color-primary);
-  position: relative; display: flex; align-items: center;
-  justify-content: center; overflow: hidden;
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  background: #ffffff;
 }
-.auth-blob {
-  position: absolute; right: -80px; top: -60px;
-  width: 500px; height: 500px; background: rgba(255,255,255,0.06);
-  border-radius: 50%; pointer-events: none;
+
+.auth-left {
+  width: 40%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.auth-left::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--color-primary);
+  clip-path: ellipse(85% 91% at 15% 50%);
+  pointer-events: none;
+}
+.auth-left::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--color-primary-light);
+  clip-path: ellipse(84% 92% at 15% 50%);
+  pointer-events: none;
 }
 .auth-illustration {
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 420px;
+  max-width: 500px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 24px 34px;
 }
 .illust-img {
   width: 100%;
   height: auto;
   object-fit: contain;
-  filter: drop-shadow(0 8px 24px rgba(0,0,0,0.22));
-  border-radius: 16px;
 }
 .auth-right {
-  width: 50%; display: flex; align-items: center;
-  justify-content: center; padding: 40px 24px; background: var(--color-white); overflow-y: auto;
+  width: 60%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 18px;
+  background: transparent;
 }
-.auth-form-wrap { width: 100%; max-width: 400px; }
-.auth-logo { display: flex; flex-direction: column; align-items: center; margin-bottom: 28px; }
-.brand-logo-img { height: 80px; width: auto; object-fit: contain; }
+.auth-form-wrap {
+  width: 100%;
+  max-width: 316px;
+}
+.auth-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 22px;
+}
+.brand-logo-img {
+  height: 180px;
+  width: auto;
+  object-fit: contain;
+}
 .auth-form { display: flex; flex-direction: column; gap: 14px; }
-.form-group { display: flex; flex-direction: column; gap: 6px; }
-.form-label { font-weight: 600; font-size: 13px; color: var(--color-text); }
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-label { font-weight: 500; font-size: 11px; color: var(--color-text); }
 .input-wrap { position: relative; }
 .form-input {
-  width: 100%; padding: 12px 48px 12px 14px;
-  border: 1.5px solid var(--color-border); border-radius: var(--radius-sm);
-  font-size: 14px; color: var(--color-text); background: #f8fafc; transition: var(--transition); outline: none;
+  width: 100%;
+  height: 33px;
+  padding: 7px 40px 7px 10px;
+  border: 1px solid #d7dce2;
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--color-text);
+  background: #eef1f5;
+  transition: var(--transition);
+  outline: none;
 }
-.form-input:focus { border-color: var(--color-primary); background: white; box-shadow: 0 0 0 3px rgba(30,58,95,0.08); }
+.form-input:focus {
+  border-color: #6c86a7;
+  background: white;
+  box-shadow: 0 0 0 2px rgba(30,58,95,0.12);
+}
 .form-input::placeholder { color: var(--color-text-muted); }
 .input-icon {
-  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
-  display: flex; align-items: center; justify-content: center;
-  color: var(--color-primary); background: #e8f0f8;
-  width: 32px; height: 32px; border-radius: 6px; pointer-events: none;
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #2f5d88;
+  background: #2f5d88;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  pointer-events: none;
+}
+.input-icon svg {
+  color: #fff;
 }
 .input-icon.clickable { pointer-events: all; cursor: pointer; border: none; }
-.form-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--color-text-muted); }
-.form-check input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--color-primary); cursor: pointer; }
-.form-error { font-size: 13px; color: var(--color-danger); padding: 10px 14px; background: #fef2f2; border-radius: var(--radius-sm); }
+.form-error {
+  font-size: 11px;
+  color: var(--color-danger);
+  padding: 8px 10px;
+  background: #fef2f2;
+  border-radius: 5px;
+  border: 1px solid #fecaca;
+}
 .btn-primary {
-  padding: 14px; background: var(--color-primary); color: white;
-  border: none; border-radius: var(--radius-sm); font-size: 15px; font-weight: 700;
-  cursor: pointer; transition: var(--transition); display: flex; align-items: center; justify-content: center; gap: 8px;
+  height: 34px;
+  padding: 0 14px;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 2px 8px rgba(28, 63, 97, 0.35);
 }
 .btn-primary:hover:not(:disabled) { background: var(--color-primary-dark); }
 .btn-primary:disabled { opacity: 0.7; cursor: not-allowed; }
-.spinner { width: 16px; height: 16px; border: 2.5px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.8s linear infinite; }
+.spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
 @keyframes spin { to { transform: rotate(360deg); } }
-.auth-switch { text-align: center; font-size: 14px; color: var(--color-text-muted); }
-.auth-switch a { color: var(--color-primary); font-weight: 700; text-decoration: underline; }
+.auth-switch {
+  text-align: center;
+  font-size: 10px;
+  color: var(--color-text-muted);
+}
+.auth-switch a {
+  color: #1f3552;
+  font-weight: 600;
+  text-decoration: underline;
+}
 @media (max-width: 768px) {
-  .auth-page { flex-direction: column; }
-  .auth-left { width: 100%; min-height: 200px; }
-  .auth-illustration { max-width: 280px; padding: 16px; }
-  .auth-right { width: 100%; padding: 28px 20px; }
+  .auth-page {
+    flex-direction: column;
+    background: #ffffff;
+  }
+  .auth-left {
+    width: 100%;
+    min-height: 220px;
+  }
+  .auth-left::before {
+    clip-path: ellipse(100% 120% at 50% 0%);
+  }
+  .auth-left::after {
+    clip-path: ellipse(72% 92% at 50% 0%);
+  }
+  .auth-illustration { max-width: 280px; padding: 10px 16px 20px; }
+  .auth-right {
+    width: 100%;
+    padding: 24px 20px 30px;
+  }
+  .auth-form-wrap {
+    max-width: 360px;
+  }
+  .form-label {
+    font-size: 12px;
+  }
+  .form-input {
+    height: 40px;
+    font-size: 13px;
+    padding: 10px 42px 10px 12px;
+  }
+  .input-icon {
+    width: 26px;
+    height: 26px;
+  }
+  .btn-primary {
+    height: 40px;
+    font-size: 13px;
+  }
+  .forgot-link,
+  .auth-switch {
+    font-size: 11px;
+  }
 }
 
 /* ── Popup Modal ── */
