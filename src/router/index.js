@@ -5,6 +5,8 @@ import ForgotPasswordView from '../views/ForgotPasswordView.vue'
 import LoginView from '../views/LoginView.vue'
 import NotifikasiView from '../views/NotifikasiView.vue'
 import OrganisasiView from '../views/OrganisasiView.vue'
+import OrganisasiDetailView from '../views/OrganisasiDetailView.vue'
+
 import PengaturanView from '../views/PengaturanView.vue'
 import PenggunaView from '../views/PenggunaView.vue'
 import PerangkatView from '../views/PerangkatView.vue'
@@ -27,6 +29,8 @@ const routes = [
   { path: '/statistika', component: StatistikaView, meta: { auth: true } },
   { path: '/pengguna', component: PenggunaView, meta: { auth: true } },
   { path: '/organisasi', component: OrganisasiView, meta: { auth: true } },
+  { path: '/organisasi/:id', component: OrganisasiDetailView, meta: { auth: true } },
+
   { path: '/pengaturan', component: PengaturanView, meta: { auth: true } },
   { path: '/profile', component: ProfileView, meta: { auth: true } },
   { path: '/ubah-kata-sandi', component: UbahKataSandiView, meta: { auth: true } },

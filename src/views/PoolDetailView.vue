@@ -5,7 +5,9 @@ import {
     getWidgetBoxList,
     unwrapApiList,
     upsertWidgetBoxes,
+    createWidgetBox,
 } from '@/services/api.js'
+
 
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -23,6 +25,7 @@ const pollTimer = ref(null)
 
 
 const newWidget = ref({
+  id: '',
   nama: '',
   pin: '',
   satuan: '',
@@ -30,6 +33,7 @@ const newWidget = ref({
   maxValue: '',
   defaultValue: '',
 })
+
 
 function mapWidget(w) {
   return {
@@ -94,34 +98,59 @@ async function addWidget() {
     error.value = 'Perangkat tidak ditemukan.'
     return
   }
+  
+  // Ambil nilai dan pastikan diubah ke string untuk divalidasi panjangnya
+  const minStr = String(newWidget.value.minValue ?? '0')
+  const maxStr = String(newWidget.value.maxValue ?? '100')
+  const defStr = String(newWidget.value.defaultValue ?? '0')
+  
+  // Validasi kriteria backend: harus string dan panjangnya 1 - 20 karakter
+  if (minStr.length < 1 || minStr.length > 20) {
+    error.value = 'Min value harus diisi (1 - 20 karakter).'
+    return
+  }
+  if (maxStr.length < 1 || maxStr.length > 20) {
+    error.value = 'Max value harus diisi (1 - 20 karakter).'
+    return
+  }
+  if (defStr.length < 1 || defStr.length > 20) {
+    error.value = 'Default value harus diisi (1 - 20 karakter).'
+    return
+  }
+  
+  if (!newWidget.value.id) {
+    error.value = 'ID Widget harus diisi.'
+    return
+  }
+
   try {
-    // Generate ID acak untuk widget baru karena API membutuhkan field ID
-    const randomId = Math.random().toString(36).substring(2, 8)
-    
-    try {
-      await upsertWidgetBoxes(orgId.value, deviceId.value, {
-        id: randomId,
-        name: newWidget.value.nama,
-        pin: newWidget.value.pin,
-        unit: newWidget.value.satuan || '',
-        min_value: String(newWidget.value.minValue ?? '0'),
-        max_value: String(newWidget.value.maxValue ?? '100'),
-        default_value: String(newWidget.value.defaultValue ?? '0'),
-      })
-    } catch (err) {
-      // Jika errornya adalah "does not exist", kita abaikan saja karena ternyata datanya tetap masuk di backend
-      if (!err?.message?.includes('does not exist')) {
-        throw err
-      }
+    const payload = {
+      id: newWidget.value.id,
+      name: newWidget.value.nama,
+      pin: newWidget.value.pin,
+      unit: newWidget.value.satuan || '',
+      min_value: minStr,
+      max_value: maxStr,
+      default_value: defStr,
     }
     
-    newWidget.value = { nama: '', pin: '', satuan: '', minValue: '', maxValue: '', defaultValue: '' }
+    // eslint-disable-next-line no-console
+    console.log('[addWidget] Sending Payload (PUT):', payload)
+    
+    const resp = await upsertWidgetBoxes(orgId.value, deviceId.value, payload)
+    // eslint-disable-next-line no-console
+    console.log('[addWidget] Success Response:', resp)
+
+    newWidget.value = { id: '', nama: '', pin: '', satuan: '', minValue: '', maxValue: '', defaultValue: '' }
+
     showAddModal.value = false
     await loadWidgets()
-
   } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[addWidget] Error:', err)
     error.value = err?.message || 'Gagal menambahkan widget.'
   }
+
 }
 
 const showEditModal = ref(false)
@@ -247,7 +276,10 @@ onUnmounted(() => {
               <h3>Tambah Widget</h3>
             </div>
             <form class="modal-form" @submit.prevent="addWidget">
+              <div v-if="error" class="error-text" style="color: var(--color-danger); font-size: 13px; margin-bottom: 8px;">{{ error }}</div>
+              <input v-model="newWidget.id" class="form-input" type="text" placeholder="ID Widget (harus teks)" required />
               <input v-model="newWidget.nama" class="form-input" type="text" placeholder="Nama Widget" required />
+
               <input v-model="newWidget.pin" class="form-input" type="text" placeholder="Pin" required />
               <input v-model="newWidget.satuan" class="form-input" type="text" placeholder="Satuan" />
               <input v-model="newWidget.minValue" class="form-input" type="number" placeholder="Min Value" />

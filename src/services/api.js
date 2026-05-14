@@ -326,6 +326,14 @@ export function upsertWidgetBoxes(organizationId, deviceId, body) {
   })
 }
 
+export function createWidgetBox(organizationId, deviceId, body) {
+  return request(`/organizations/${organizationId}/devices/${deviceId}/widget-boxes`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+
 export function deleteWidgetBox(organizationId, deviceId, widgetBoxId) {
   return request(`/organizations/${organizationId}/devices/${deviceId}/widget-boxes/${widgetBoxId}`, {
     method: 'DELETE',

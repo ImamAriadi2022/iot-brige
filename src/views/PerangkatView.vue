@@ -2,7 +2,8 @@
 import {
     createDevice,
     deleteDevice,
-    ensureOrganizationId,
+    getOrganizationsList,
+    getDevices,
     searchDevices,
     unwrapApiList,
 } from '@/services/api.js'
@@ -18,7 +19,9 @@ const selectedDevice = ref(null)
 const perangkat = ref([])
 const loading = ref(false)
 const error = ref('')
-const orgId = ref(null)
+
+const organizations = ref([])
+const selectedOrgId = ref(null)
 
 const selectedDeviceId = ref('all')
 const newDevice = ref({ nama: '', token: '', pemilik: '', status: 'Offline' })
@@ -35,11 +38,6 @@ const filtered = computed(() => {
 })
 
 function mapDevice(d) {
-  // Debug: log raw device data to see what fields backend returns
-  if (!d.token && !d?.auth_token && !d?.authToken && !d?.authentication_token && !d?.auth_code) {
-    // eslint-disable-next-line no-console
-    console.warn('[mapDevice] Device missing token field:', d)
-  }
   return {
     id: d?.id || d?.device_id || d?.deviceId || d?._id,
     nama: d?.name || d?.nama || d?.device_name || 'Perangkat',
@@ -51,17 +49,36 @@ function mapDevice(d) {
   }
 }
 
-async function loadDevices() {
+async function loadOrganizations() {
+  try {
+    const data = await getOrganizationsList()
+    organizations.value = unwrapApiList(data)
+    if (organizations.value.length > 0) {
+      selectedOrgId.value = organizations.value[0].id || organizations.value[0]._id
+      loadDevices(selectedOrgId.value)
+    }
+  } catch (err) {
+    error.value = 'Gagal memuat organisasi.'
+  }
+}
+
+async function onOrgChange() {
+  if (selectedOrgId.value) {
+    selectedDeviceId.value = 'all' // Reset device filter
+    loadDevices(selectedOrgId.value)
+  }
+}
+
+async function loadDevices(orgId) {
   loading.value = true
   error.value = ''
   try {
-    orgId.value = await ensureOrganizationId()
-    if (!orgId.value) {
-      perangkat.value = []
-      error.value = 'Organisasi belum tersedia untuk akun ini.'
-      return
+    let data
+    try {
+      data = await getDevices(orgId)
+    } catch (e) {
+      data = await searchDevices(orgId, { name: '' })
     }
-    const data = await searchDevices(orgId.value)
     const list = unwrapApiList(data)
     perangkat.value = list.map(mapDevice).filter(d => d.id)
   } catch (err) {
@@ -77,9 +94,9 @@ function openDelete(device) {
 }
 
 async function confirmDelete() {
-  if (!orgId.value) return
+  if (!selectedOrgId.value) return
   try {
-    await deleteDevice(orgId.value, selectedDevice.value.id)
+    await deleteDevice(selectedOrgId.value, selectedDevice.value.id)
     perangkat.value = perangkat.value.filter(d => d.id !== selectedDevice.value.id)
   } catch (err) {
     error.value = err?.message || 'Gagal menghapus perangkat.'
@@ -90,26 +107,20 @@ async function confirmDelete() {
 
 async function addDevice() {
   if (!newDevice.value.nama) return
-  if (!orgId.value) {
-    error.value = 'Organisasi belum tersedia.'
+  if (!selectedOrgId.value) {
+    error.value = 'Organisasi belum dipilih.'
     return
   }
   try {
-    // Backend auto-generates auth_token, status, owner_email — only send name
-    await createDevice(orgId.value, {
+    await createDevice(selectedOrgId.value, {
       name: newDevice.value.nama,
     })
     newDevice.value = { nama: '', token: '', pemilik: '', status: 'Offline' }
     showAddModal.value = false
-    await loadDevices()
+    await loadDevices(selectedOrgId.value)
   } catch (err) {
     error.value = err?.message || 'Gagal menambahkan perangkat.'
   }
-}
-
-function generateToken() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-  return Array.from({ length: 32 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
 }
 
 function copyToken(token) {
@@ -121,31 +132,42 @@ function openWidgetBox(device) {
 }
 
 function openDeviceStats(device) {
-  // Navigate to device-specific statistics
   router.push(`/statistika?device=${device.id}`)
 }
 
-function openStat() {
-  router.push('/statistika')
-}
-
-onMounted(loadDevices)
+onMounted(loadOrganizations)
 </script>
+
 
 <template>
   <AppLayout page-title="Perangkat">
     <div class="device-page">
-      <div class="device-filter">
-        <label class="filter-label" for="device-select">Pilih Perangkat</label>
-        <div class="select-wrap">
-          <select id="device-select" v-model="selectedDeviceId" class="select-input">
-            <option v-for="opt in deviceOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-          </select>
-          <svg class="select-caret" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M6 9l6 6 6-6"/>
-          </svg>
+      <div class="device-filter" style="display: flex; gap: 16px; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 200px;">
+          <label class="filter-label" for="org-select">Pilih Organisasi</label>
+          <div class="select-wrap">
+            <select id="org-select" v-model="selectedOrgId" class="select-input" @change="onOrgChange">
+              <option v-for="org in organizations" :key="org.id" :value="org.id">{{ org.name }}</option>
+            </select>
+            <svg class="select-caret" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 9l6 6 6-6"/>
+            </svg>
+          </div>
+        </div>
+
+        <div style="flex: 1; min-width: 200px;">
+          <label class="filter-label" for="device-select">Pilih Perangkat</label>
+          <div class="select-wrap">
+            <select id="device-select" v-model="selectedDeviceId" class="select-input">
+              <option v-for="opt in deviceOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+            </select>
+            <svg class="select-caret" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 9l6 6 6-6"/>
+            </svg>
+          </div>
         </div>
       </div>
+
 
       <div v-if="error" class="device-empty error">{{ error }}</div>
       <div v-else-if="loading" class="device-empty">Memuat perangkat...</div>
