@@ -32,7 +32,6 @@ const navItems = [
   { label: 'Perangkat', path: '/perangkat', icon: 'device' },
   { label: 'Organisasi', path: '/organisasi', icon: 'org' },
   { label: 'Pengaturan', path: '/pengaturan', icon: 'settings' },
-  { label: 'Pengguna', path: '/pengguna', icon: 'users' },
 ]
 
 function isActive(path) {
