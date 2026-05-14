@@ -1,11 +1,12 @@
 <script setup>
 import {
-    ensureOrganizationId,
+    getOrganizationsList,
     getDeviceReport,
     getWidgetBoxList,
     unwrapApiList,
     upsertWidgetBoxes,
 } from '@/services/api.js'
+
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
@@ -48,16 +49,39 @@ async function loadWidgets() {
   loading.value = true
   error.value = ''
   try {
-    orgId.value = await ensureOrganizationId()
-    if (!orgId.value || !deviceId.value) {
+    // Ambil semua organisasi
+    const orgsData = await getOrganizationsList()
+    const orgs = unwrapApiList(orgsData)
+    
+    let foundOrgId = null
+    let data = null
+    
+    // Cari organisasi mana yang memiliki device ini
+    for (const org of orgs) {
+      const oid = org?.id || org?.organization_id || org?._id
+      if (!oid) continue
+      
+      try {
+        // Coba ambil widget list untuk device ini di org ini
+        data = await getWidgetBoxList(oid, deviceId.value)
+        foundOrgId = oid
+        break // Jika berhasil, hentikan loop
+      } catch (e) {
+        // Jika gagal (device tidak ada di org ini), coba org lain
+      }
+    }
+    
+    if (!foundOrgId) {
       widgets.value = []
-      error.value = 'Perangkat tidak ditemukan.'
+      error.value = 'Perangkat tidak ditemukan di organisasi Anda.'
       return
     }
-    const data = await getWidgetBoxList(orgId.value, deviceId.value)
+    
+    orgId.value = foundOrgId
     const list = unwrapApiList(data)
     widgets.value = list.map(mapWidget).filter(w => w.id)
   } catch (err) {
+
     error.value = err?.message || 'Gagal memuat widget.'
   } finally {
     loading.value = false
@@ -71,23 +95,80 @@ async function addWidget() {
     return
   }
   try {
-    await upsertWidgetBoxes(orgId.value, deviceId.value, {
-      name: newWidget.value.nama,
-      pin: newWidget.value.pin,
-      unit: newWidget.value.satuan,
-      min_value: newWidget.value.minValue,
-      max_value: newWidget.value.maxValue,
-      default_value: newWidget.value.defaultValue,
-    })
+    // Generate ID acak untuk widget baru karena API membutuhkan field ID
+    const randomId = Math.random().toString(36).substring(2, 8)
+    
+    try {
+      await upsertWidgetBoxes(orgId.value, deviceId.value, {
+        id: randomId,
+        name: newWidget.value.nama,
+        pin: newWidget.value.pin,
+        unit: newWidget.value.satuan || '',
+        min_value: String(newWidget.value.minValue ?? '0'),
+        max_value: String(newWidget.value.maxValue ?? '100'),
+        default_value: String(newWidget.value.defaultValue ?? '0'),
+      })
+    } catch (err) {
+      // Jika errornya adalah "does not exist", kita abaikan saja karena ternyata datanya tetap masuk di backend
+      if (!err?.message?.includes('does not exist')) {
+        throw err
+      }
+    }
+    
     newWidget.value = { nama: '', pin: '', satuan: '', minValue: '', maxValue: '', defaultValue: '' }
     showAddModal.value = false
     await loadWidgets()
+
   } catch (err) {
     error.value = err?.message || 'Gagal menambahkan widget.'
   }
 }
 
+const showEditModal = ref(false)
+const editingWidget = ref({
+  id: '',
+  nama: '',
+  pin: '',
+  satuan: '',
+  minValue: '',
+  maxValue: '',
+  defaultValue: '',
+})
+
+function openEditModal(w) {
+  editingWidget.value = {
+    id: w.id,
+    nama: w.nama,
+    pin: w.pin,
+    satuan: w.satuan,
+    minValue: w.minValue,
+    maxValue: w.maxValue,
+    defaultValue: w.defaultValue,
+  }
+  showEditModal.value = true
+}
+
+async function saveEditWidget() {
+  if (!editingWidget.value.nama || !editingWidget.value.pin) return
+  try {
+    await upsertWidgetBoxes(orgId.value, deviceId.value, {
+      id: editingWidget.value.id,
+      name: editingWidget.value.nama,
+      pin: editingWidget.value.pin,
+      unit: editingWidget.value.satuan || '',
+      min_value: String(editingWidget.value.minValue ?? '0'),
+      max_value: String(editingWidget.value.maxValue ?? '100'),
+      default_value: String(editingWidget.value.defaultValue ?? '0'),
+    })
+    showEditModal.value = false
+    await loadWidgets()
+  } catch (err) {
+    error.value = err?.message || 'Gagal memperbarui widget.'
+  }
+}
+
 async function fetchCurrentValues() {
+
   if (!orgId.value || !deviceId.value || widgets.value.length === 0) return
   const now = new Date()
   const fiveMinsAgo = new Date(now.getTime() - 5 * 60 * 1000)
@@ -140,7 +221,8 @@ onUnmounted(() => {
         <div v-if="error" class="widget-empty error">{{ error }}</div>
         <div v-else-if="loading" class="widget-empty">Memuat widget...</div>
         <div v-else-if="widgets.length === 0" class="widget-empty">Belum ada widget.</div>
-        <div v-for="w in widgets" :key="w.id" class="widget-card">
+        <div v-for="w in widgets" :key="w.id" class="widget-card" @click="openEditModal(w)" style="cursor: pointer;">
+
           <div class="widget-title">{{ w.nama }}</div>
           <div class="widget-value-row">
             <div class="widget-value">{{ w.currentValue }} <span class="unit">{{ w.satuan }}</span></div>
@@ -179,7 +261,31 @@ onUnmounted(() => {
           </div>
         </div>
       </Transition>
+
+      <!-- Edit Modal -->
+      <Transition name="modal">
+        <div v-if="showEditModal" class="modal-overlay" @click.self="showEditModal = false">
+          <div class="modal-box">
+            <div class="modal-head">
+              <h3>Edit Widget</h3>
+            </div>
+            <form class="modal-form" @submit.prevent="saveEditWidget">
+              <input v-model="editingWidget.nama" class="form-input" type="text" placeholder="Nama Widget" required />
+              <input v-model="editingWidget.pin" class="form-input" type="text" placeholder="Pin" required />
+              <input v-model="editingWidget.satuan" class="form-input" type="text" placeholder="Satuan" />
+              <input v-model="editingWidget.minValue" class="form-input" type="number" placeholder="Min Value" />
+              <input v-model="editingWidget.maxValue" class="form-input" type="number" placeholder="Max Value" />
+              <input v-model="editingWidget.defaultValue" class="form-input" type="number" placeholder="Default Value" />
+              <div class="modal-actions">
+                <button type="button" class="btn-text" @click="showEditModal = false">Tutup</button>
+                <button type="submit" class="btn-primary">Simpan</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </Transition>
     </div>
+
   </AppLayout>
 </template>
 

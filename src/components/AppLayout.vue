@@ -186,8 +186,12 @@ onUnmounted(() => {
           </div>
           <div class="user-menu-wrap" @click.stop="toggleUserMenu">
             <button class="user-btn">
-              <div class="user-avatar">{{ user.name?.charAt(0)?.toUpperCase() || 'U' }}</div>
+              <div class="user-avatar">
+                <img v-if="user.avatar" :src="user.avatar.startsWith('/') ? 'https://iotbridge.click' + user.avatar : user.avatar" alt="Avatar" />
+                <span v-else>{{ user.name?.charAt(0)?.toUpperCase() || 'U' }}</span>
+              </div>
               <span class="user-name">{{ user.name }}</span>
+
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M6 9l6 6 6-6"/>
               </svg>
@@ -475,8 +479,15 @@ onUnmounted(() => {
   font-weight: 700;
   font-size: 14px;
   flex-shrink: 0;
+  overflow: hidden;
+}
+.user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .user-name {
+
   font-weight: 600;
   font-size: 14px;
   max-width: 120px;

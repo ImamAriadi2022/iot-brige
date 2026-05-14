@@ -1,7 +1,9 @@
 <script setup>
-import { ensureOrganizationId, searchDevices, unwrapApiList, getNotifications } from '@/services/api.js'
+import { getOrganizationsList, searchDevices, getDevices, unwrapApiList, getNotifications } from '@/services/api.js'
+
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+
 import AppLayout from '../components/AppLayout.vue'
 
 const router = useRouter()
@@ -22,25 +24,42 @@ function mapDevice(d) {
   return { id: String(id), name: name.toUpperCase(), type: detectType(name) }
 }
 
-async function loadDevices() {
+const organizations = ref([])
+const selectedOrgId = ref(null)
+
+async function loadOrganizations() {
+  try {
+    const data = await getOrganizationsList()
+    organizations.value = unwrapApiList(data)
+    if (organizations.value.length > 0) {
+      selectedOrgId.value = organizations.value[0].id || organizations.value[0]._id
+      loadDevices(selectedOrgId.value)
+    }
+  } catch (err) {
+    error.value = 'Gagal memuat organisasi.'
+  }
+}
+
+async function onOrgChange() {
+  if (selectedOrgId.value) {
+    loadDevices(selectedOrgId.value)
+  }
+}
+
+async function loadDevices(orgId) {
   loading.value = true
   error.value = ''
   try {
-    const orgId = await ensureOrganizationId()
-    if (!orgId) {
-      pools.value = []
-      error.value = 'Organisasi belum tersedia untuk akun ini.'
-      return
+    let devData
+    try {
+      devData = await getDevices(orgId)
+    } catch (e) {
+      devData = await searchDevices(orgId, { name: '' })
     }
-    const data = await searchDevices(orgId)
-    const list = unwrapApiList(data)
+    const list = unwrapApiList(devData)
     pools.value = list.map(mapDevice).filter(p => p.id)
   } catch (err) {
-    if (err?.status === 403 || /verif/i.test(String(err?.message || ''))) {
-      error.value = 'Organisasi belum diverifikasi. Akses tidak diizinkan.'
-    } else {
-      error.value = err?.message || 'Gagal memuat daftar perangkat.'
-    }
+    error.value = err?.message || 'Gagal memuat daftar perangkat.'
   } finally {
     loading.value = false
   }
@@ -50,38 +69,34 @@ function goToPool(pool) {
   router.push(`/dashboard/kolam/${pool.id}`)
 }
 
-async function loadNotificationsCount() {
-  try {
-    const data = await getNotifications()
-    const list = Array.isArray(data) ? data : data?.data || []
-    activeNotifsCount.value = list.length
-  } catch {
-    activeNotifsCount.value = 0
-  }
-}
-
-onMounted(() => {
-  loadDevices()
-  loadNotificationsCount()
+onMounted(async () => {
+  await loadOrganizations()
 })
+
+
 
 </script>
 
 <template>
   <AppLayout page-title="Dashboard">
-    <div v-if="error" class="data-error">{{ error }}</div>
-    <div v-else-if="loading" class="data-loading">Memuat perangkat...</div>
-    <div v-else-if="pools.length === 0" class="data-empty">Belum ada perangkat.</div>
-    <div v-else>
+    <div class="org-selector-wrap" style="margin: 0 24px 20px; display: flex; align-items: center; gap: 10px;">
+      <label for="org-select" style="font-weight: 600; font-size: 14px; color: var(--color-text);">Pilih Organisasi:</label>
+      <select id="org-select" v-model="selectedOrgId" @change="onOrgChange" style="padding: 8px 12px; border-radius: var(--radius-md); border: 1px solid var(--color-border); background: white; font-size: 14px; min-width: 200px;">
+        <option v-for="org in organizations" :key="org.id" :value="org.id">{{ org.name }}</option>
+      </select>
+    </div>
+
+    <div v-if="error" class="data-error" style="margin: 0 24px;">{{ error }}</div>
+    <div v-else-if="loading" class="data-loading" style="margin: 0 24px;">Memuat perangkat...</div>
+    <div v-else-if="pools.length === 0" class="data-empty" style="margin: 0 24px;">Belum ada perangkat di organisasi ini.</div>
+    <div v-else style="padding: 0 24px;">
+
       <div class="summary-row">
         <div class="summary-card">
           <div class="summary-label">Total Perangkat</div>
           <div class="summary-val">{{ pools.length }}</div>
         </div>
-        <div class="summary-card">
-          <div class="summary-label">Notifikasi Aktif</div>
-          <div class="summary-val">{{ activeNotifsCount }}</div>
-        </div>
+
       </div>
 
       <div class="dashboard-grid">

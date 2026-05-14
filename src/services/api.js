@@ -21,9 +21,11 @@ async function request(path, options = {}) {
   const res = await fetch(`${BASE_URL}${path}`, {
 
 
+
     ...options,
     headers,
   })
+
 
   let data = null
   const contentType = res.headers.get('content-type') || ''
@@ -131,7 +133,7 @@ export function forgotPassword(body) {
  * GET /auth/profile
  */
 export function getProfile() {
-  return request('/auth/profile')
+  return request('/auth/profile', { useApi: false })
 }
 
 /**
@@ -142,8 +144,12 @@ export function updateProfile(formData) {
   return request('/auth/profile', {
     method: 'PATCH',
     body: formData,
+    useApi: false,
   })
 }
+
+
+
 
 
 /**
@@ -271,6 +277,10 @@ export function getOrganizationById(organizationId) {
 
 export function searchDevices(organizationId, params = {}) {
   return request(`/organizations/${organizationId}/devices/search${toQuery(params)}`)
+}
+
+export function getDevices(organizationId) {
+  return request(`/organizations/${organizationId}/devices`)
 }
 
 export function getDeviceById(organizationId, deviceId) {
