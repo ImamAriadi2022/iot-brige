@@ -30,6 +30,8 @@ const saving = ref(false)
 const saved = ref(false)
 const error = ref('')
 const isEditing = ref(false) // Mode Edit
+const showSuccessModal = ref(false)
+
 
 const members = ref([])
 const searchMemberQuery = ref('')
@@ -71,9 +73,9 @@ async function handleSave() {
     }
 
     await updateOrganizationProfile(organizationId.value, formData)
-    saved.value = true
+    showSuccessModal.value = true
     isEditing.value = false // Kembali ke mode lihat
-    setTimeout(() => { saved.value = false }, 2500)
+
   } catch (err) {
     error.value = err?.message || 'Gagal memperbarui profil organisasi.'
   } finally {
@@ -301,8 +303,27 @@ onMounted(loadOrganization)
         </div>
       </div>
 
+      <!-- Success Modal -->
+      <Transition name="modal">
+        <div v-if="showSuccessModal" class="modal-overlay" @click.self="showSuccessModal = false">
+          <div class="modal-box text-center">
+            <div class="success-icon-wrap">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--color-success)" stroke-width="2.5">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <h3>Berhasil!</h3>
+            <p style="color: var(--color-text-muted); font-size: 14px;">Profil organisasi telah berhasil diperbarui.</p>
+            <div class="modal-actions" style="justify-content: center; margin-top: 8px;">
+              <button class="btn-primary" @click="showSuccessModal = false">Oke</button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+
       <!-- Add Member Modal -->
       <Transition name="modal">
+
         <div v-if="showAddMemberModal" class="modal-overlay" @click.self="showAddMemberModal = false">
           <div class="modal-box">
             <div class="modal-head">
@@ -458,6 +479,9 @@ onMounted(loadOrganization)
 /* Modal styles */
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 999; }
 .modal-box { background: white; padding: 24px; border-radius: var(--radius-md); width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 16px; }
+.text-center { text-align: center; }
+.success-icon-wrap { width: 56px; height: 56px; background: #e6f4ea; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto; }
+
 .modal-head h3 { font-size: 16px; font-weight: 700; color: var(--color-text); }
 .modal-form { display: flex; flex-direction: column; gap: 12px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
