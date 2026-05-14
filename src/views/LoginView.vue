@@ -72,7 +72,6 @@ function closePopup() {
   <div class="auth-page">
     <!-- Left panel -->
     <div class="auth-left">
-      <div class="auth-blob"></div>
       <div class="auth-illustration">
         <img src="@/assets/animasi-page-first.png" alt="Ilustrasi Login" class="illust-img" />
       </div>
@@ -153,67 +152,71 @@ function closePopup() {
 .auth-page {
   min-height: 100vh;
   display: flex;
+  background: #ffffff;
 }
 
 /* LEFT */
 .auth-left {
-  width: 50%;
-  background: var(--color-primary);
+  width: 40%;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
 }
-.auth-blob {
+.auth-left::before {
+  content: '';
   position: absolute;
-  right: -80px;
-  top: -60px;
-  width: 500px;
-  height: 500px;
-  background: rgba(255,255,255,0.06);
-  border-radius: 50%;
+  inset: 0;
+  background: var(--color-primary);
+  clip-path: ellipse(85% 91% at 15% 50%);
+  pointer-events: none;
+}
+.auth-left::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--color-primary-light);
+  clip-path: ellipse(84% 92% at 15% 50%);
   pointer-events: none;
 }
 .auth-illustration {
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 420px;
+  max-width: 500px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 24px 34px;
 }
 .illust-img {
   width: 100%;
   height: auto;
   object-fit: contain;
-  filter: drop-shadow(0 8px 24px rgba(0,0,0,0.22));
-  border-radius: 16px;
 }
 
 /* RIGHT */
 .auth-right {
-  width: 50%;
+  width: 60%;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px 24px;
-  background: var(--color-white);
+  padding: 24px 18px;
+  background: transparent;
 }
 .auth-form-wrap {
   width: 100%;
-  max-width: 400px;
+  max-width: 316px;
 }
 .auth-logo {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 36px;
+  margin-bottom: 22px;
 }
 .brand-logo-img {
-  height: 80px;
+  height: 180px;
   width: auto;
   object-fit: contain;
 }
@@ -222,16 +225,16 @@ function closePopup() {
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
 }
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 .form-label {
-  font-weight: 600;
-  font-size: 13px;
+  font-weight: 500;
+  font-size: 11px;
   color: var(--color-text);
 }
 .input-wrap {
@@ -239,35 +242,40 @@ function closePopup() {
 }
 .form-input {
   width: 100%;
-  padding: 12px 48px 12px 14px;
-  border: 1.5px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  font-size: 14px;
+  height: 33px;
+  padding: 7px 40px 7px 10px;
+  border: 1px solid #d7dce2;
+  border-radius: 5px;
+  font-size: 12px;
   color: var(--color-text);
-  background: #f8fafc;
+  background: #eef1f5;
   transition: var(--transition);
   outline: none;
 }
 .form-input:focus {
-  border-color: var(--color-primary);
+  border-color: #6c86a7;
   background: white;
-  box-shadow: 0 0 0 3px rgba(30,58,95,0.08);
+  box-shadow: 0 0 0 2px rgba(30,58,95,0.12);
 }
 .form-input::placeholder { color: var(--color-text-muted); }
 .input-icon {
   position: absolute;
-  right: 12px;
+  right: 6px;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-primary);
-  background: #e8f0f8;
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
+  color: #2f5d88;
+  background: #2f5d88;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
   pointer-events: none;
+}
+.input-icon :deep(svg),
+.input-icon svg {
+  color: #fff;
 }
 .input-icon.clickable {
   pointer-events: all;
@@ -275,44 +283,46 @@ function closePopup() {
   border: none;
 }
 .form-error {
-  font-size: 13px;
+  font-size: 11px;
   color: var(--color-danger);
-  padding: 10px 14px;
+  padding: 8px 10px;
   background: #fef2f2;
-  border-radius: var(--radius-sm);
+  border-radius: 5px;
   border: 1px solid #fecaca;
 }
 .forgot-link {
   text-align: right;
-  font-size: 13px;
+  font-size: 10px;
 }
 .forgot-link a {
-  color: var(--color-text);
+  color: #4a5565;
   text-decoration: underline;
-  font-weight: 500;
+  font-weight: 400;
 }
 .forgot-link a:hover { color: var(--color-accent); }
 .btn-primary {
-  padding: 14px;
+  height: 34px;
+  padding: 0 14px;
   background: var(--color-primary);
   color: white;
   border: none;
-  border-radius: var(--radius-sm);
-  font-size: 15px;
-  font-weight: 700;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
   cursor: pointer;
   transition: var(--transition);
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  box-shadow: 0 2px 8px rgba(28, 63, 97, 0.35);
 }
 .btn-primary:hover:not(:disabled) { background: var(--color-primary-dark); }
 .btn-primary:disabled { opacity: 0.7; cursor: not-allowed; }
 .spinner {
-  width: 16px;
-  height: 16px;
-  border: 2.5px solid rgba(255,255,255,0.4);
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255,255,255,0.4);
   border-top-color: white;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -320,26 +330,58 @@ function closePopup() {
 @keyframes spin { to { transform: rotate(360deg); } }
 .auth-switch {
   text-align: center;
-  font-size: 14px;
+  font-size: 10px;
   color: var(--color-text-muted);
 }
 .auth-switch a {
-  color: var(--color-primary);
-  font-weight: 700;
+  color: #1f3552;
+  font-weight: 600;
   text-decoration: underline;
 }
 
 /* RESPONSIVE */
 @media (max-width: 768px) {
-  .auth-page { flex-direction: column; }
+  .auth-page {
+    flex-direction: column;
+    background: #ffffff;
+  }
   .auth-left {
     width: 100%;
-    min-height: 240px;
+    min-height: 220px;
   }
-  .auth-illustration { max-width: 280px; padding: 16px; }
+  .auth-left::before {
+    clip-path: ellipse(100% 120% at 50% 0%);
+  }
+  .auth-left::after {
+    clip-path: ellipse(72% 92% at 50% 0%);
+  }
+  .auth-illustration { max-width: 280px; padding: 10px 16px 20px; }
   .auth-right {
     width: 100%;
-    padding: 32px 20px;
+    padding: 24px 20px 30px;
+  }
+  .auth-form-wrap {
+    max-width: 360px;
+  }
+  .form-label {
+    font-size: 12px;
+  }
+  .form-input {
+    height: 40px;
+    font-size: 13px;
+    padding: 10px 42px 10px 12px;
+  }
+  .input-icon {
+    width: 26px;
+    height: 26px;
+  }
+  .btn-primary {
+    height: 40px;
+    font-size: 13px;
+  }
+  .forgot-link,
+  .auth-switch {
+    font-size: 11px;
   }
 }
 
