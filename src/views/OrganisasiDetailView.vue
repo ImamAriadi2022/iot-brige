@@ -185,31 +185,35 @@ async function handleChangeRole(member) {
 }
 
 async function handleLeaveOrganization() {
-  // Cari user saat ini di dalam daftar anggota
-  const adminMembers = members.value.filter(m => m.role?.toLowerCase() === 'admin' || m.role === 'Admin')
-  
-  // Jika jumlah admin hanya 1, dan user saat ini adalah admin tersebut
-  // Kita bisa mengecek apakah ID atau Email user saat ini cocok dengan satu-satunya admin itu
-  const theOnlyAdmin = adminMembers[0]
-  
-  // Ambil profil lagi untuk memastikan data terbaru
-  let isOnlyAdmin = false
+  // Ambil profil untuk memastikan data terbaru
+  let currentEmail = ''
   try {
     const myProfileRes = await getProfile()
     const myProfile = myProfileRes?.data?.user || myProfileRes?.user || myProfileRes
-    
-    if (theOnlyAdmin) {
-      isOnlyAdmin = (String(myProfile.id) === String(theOnlyAdmin.id)) || (myProfile.email === theOnlyAdmin.email)
-    }
+    currentUserId.value = myProfile?.id
+    currentEmail = myProfile?.email
   } catch (e) {
-    // Fallback jika API gagal, asumsikan dari data yang di-load sebelumnya
-    isOnlyAdmin = adminMembers.length <= 1
+    // Ignore error
   }
 
-  if (isOnlyAdmin && adminMembers.length <= 1) {
+  // Cari user saat ini di dalam daftar anggota
+  const currentUserInList = members.value.find(m => 
+    (currentUserId.value && String(m.id) === String(currentUserId.value)) || 
+    (currentEmail && m.email === currentEmail)
+  )
+  
+  // Cek apakah user saat ini adalah admin (mengandung kata 'admin')
+  const isCurrentAdmin = currentUserInList?.role?.toLowerCase().includes('admin')
+  
+  // Hitung jumlah admin (mengandung kata 'admin')
+  const adminMembers = members.value.filter(m => m.role?.toLowerCase().includes('admin'))
+  
+  // Jika dia adalah admin dan jumlah admin hanya 1 (atau kurang), maka tidak boleh keluar
+  if (isCurrentAdmin && adminMembers.length <= 1) {
     alert('Anda tidak bisa keluar organisasi karena Anda adalah satu-satunya admin. Silakan tunjuk admin lain terlebih dahulu.')
     return
   }
+
 
   
   if (!confirm('Apakah Anda yakin ingin keluar dari organisasi ini?')) return
