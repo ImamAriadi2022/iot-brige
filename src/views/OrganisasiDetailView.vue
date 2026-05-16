@@ -185,10 +185,19 @@ async function handleChangeRole(member) {
 }
 
 async function handleLeaveOrganization() {
+  // Reload members first to ensure we have the latest data
+  await loadMembers()
+  
+  if (members.value.length === 0) {
+    alert('Gagal memvalidasi daftar anggota. Silakan coba lagi.')
+    return
+  }
+
   // Ambil profil untuk memastikan data terbaru
   let currentEmail = ''
   try {
     const myProfileRes = await getProfile()
+
     const myProfile = myProfileRes?.data?.user || myProfileRes?.user || myProfileRes
     currentUserId.value = myProfile?.id
     currentEmail = myProfile?.email
