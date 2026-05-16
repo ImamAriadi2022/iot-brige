@@ -426,13 +426,33 @@ export function setActiveOrganizationId(organizationId) {
 
 export async function ensureOrganizationId() {
   const existing = getActiveOrganizationId()
-  if (existing) return existing
-  const data = await getOrganizationsList()
-  const list = unwrapList(data)
-  const first = list[0]
-  const id = pickId(first, ['id', 'organization_id', 'organizationId', '_id'])
-  if (id) setActiveOrganizationId(String(id))
-  return id ? String(id) : null
+  
+  try {
+    const data = await getOrganizationsList()
+    const list = unwrapList(data)
+    
+    if (list.length === 0) {
+      setActiveOrganizationId('')
+      return null
+    }
+
+    // Verify existing is in list
+    const stillExists = list.find(o => String(o.id || o.organization_id || o.organizationId || o._id) === existing)
+    if (existing && stillExists) {
+      return existing
+    }
+    
+    // Pick first VERIFIED organization if possible
+    const verifiedOrg = list.find(o => o.is_verified || o.isVerified || o.verified || ['verified', 'active', 'approved'].includes(String(o.status || o.verification_status || '').toLowerCase()))
+    
+    const first = verifiedOrg || list[0]
+    const id = pickId(first, ['id', 'organization_id', 'organizationId', '_id'])
+    if (id) setActiveOrganizationId(String(id))
+    return id ? String(id) : null
+  } catch (err) {
+    // If getting org list fails, fallback to existing or null
+    return existing || null
+  }
 }
 
 export function unwrapApiList(data) {

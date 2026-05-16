@@ -19,6 +19,27 @@ const error = ref('')
 const report = ref(null)
 const orgId = ref(null)
 
+const showLoadingPopup = ref(false)
+const elapsedSeconds = ref(0)
+let timerInterval = null
+
+function startLoading() {
+  showLoadingPopup.value = true
+  elapsedSeconds.value = 0
+  if (timerInterval) clearInterval(timerInterval)
+  timerInterval = setInterval(() => {
+    elapsedSeconds.value++
+  }, 1000)
+}
+
+function stopLoading() {
+  showLoadingPopup.value = false
+  if (timerInterval) {
+    clearInterval(timerInterval)
+    timerInterval = null
+  }
+}
+
 const canShow = computed(() => fromDate.value && toDate.value && selectedWidget.value && selectedDeviceId.value)
 
 function mapWidget(w) {
@@ -31,6 +52,7 @@ function mapWidget(w) {
 async function loadDevicesAndWidgets() {
   loading.value = true
   error.value = ''
+  startLoading()
   try {
     orgId.value = await ensureOrganizationId()
     if (!orgId.value) {
@@ -39,8 +61,18 @@ async function loadDevicesAndWidgets() {
     }
     const deviceData = await searchDevices(orgId.value)
     const deviceList = unwrapApiList(deviceData)
-    const firstDevice = deviceList[0]
-    selectedDeviceId.value = String(firstDevice?.id || firstDevice?.device_id || firstDevice?.deviceId || firstDevice?._id || '')
+    
+    // Check if device is provided in query
+    const routeParams = new URLSearchParams(window.location.search)
+    const queryDevice = routeParams.get('device')
+    
+    let targetDevice = deviceList[0]
+    if (queryDevice) {
+      const found = deviceList.find(d => String(d.id || d.device_id || d.deviceId || d._id) === String(queryDevice))
+      if (found) targetDevice = found
+    }
+
+    selectedDeviceId.value = String(targetDevice?.id || targetDevice?.device_id || targetDevice?.deviceId || targetDevice?._id || '')
     if (!selectedDeviceId.value) return
     const widgetData = await getWidgetBoxList(orgId.value, selectedDeviceId.value)
     const widgetList = unwrapApiList(widgetData)
@@ -50,6 +82,7 @@ async function loadDevicesAndWidgets() {
     error.value = err?.message || 'Gagal memuat data widget.'
   } finally {
     loading.value = false
+    stopLoading()
   }
 }
 
@@ -58,6 +91,7 @@ async function handleShowReport() {
   loading.value = true
   error.value = ''
   report.value = null
+  startLoading()
   try {
     const data = await getDeviceReport(orgId.value, selectedDeviceId.value, {
       from: fromDate.value,
@@ -69,6 +103,7 @@ async function handleShowReport() {
     error.value = err?.message || 'Gagal memuat report.'
   } finally {
     loading.value = false
+    stopLoading()
   }
 }
 
@@ -120,6 +155,18 @@ onMounted(loadDevicesAndWidgets)
 
 <template>
   <AppLayout page-title="Statistika">
+    <!-- Loading Popup with Timer -->
+    <Transition name="popup">
+      <div v-if="showLoadingPopup" class="popup-overlay">
+        <div class="popup-card loading-card">
+          <span class="big-spinner"></span>
+          <p class="popup-message">Harap Tunggu...</p>
+          <p class="popup-subtext">Sedang menarik data dari server backend.</p>
+          <div class="timer-badge">{{ elapsedSeconds }} detik</div>
+        </div>
+      </div>
+    </Transition>
+
     <div class="stat-page">
       <div class="date-row">
         <div class="date-field">
@@ -283,4 +330,67 @@ onMounted(loadDevicesAndWidgets)
 @media (max-width: 768px) {
   .date-row { grid-template-columns: 1fr; }
 }
+
+/* ── Popup Modal ── */
+.popup-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 33, 56, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+}
+.popup-card {
+  background: white;
+  border-radius: 18px;
+  padding: 30px;
+  max-width: 340px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.85) translateY(20px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.big-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(232, 107, 26, 0.2);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.popup-message {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+}
+.popup-subtext {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  text-align: center;
+  margin: 0;
+}
+.timer-badge {
+  background: #f1f5f9;
+  color: var(--color-primary);
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.popup-enter-active,
+.popup-leave-active { transition: opacity 0.25s ease; }
+.popup-enter-from,
+.popup-leave-to { opacity: 0; }
 </style>

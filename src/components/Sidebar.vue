@@ -15,16 +15,8 @@ const emit = defineEmits(['closeSidebar', 'confirmLogout'])
   <aside class="sidebar" :class="{ open: sidebarOpen, mini: sidebarMini }">
     <div class="sidebar-logo">
       <RouterLink to="/dashboard" @click="$emit('closeSidebar')">
-        <svg width="44" height="40" viewBox="0 0 44 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M6 36 L6 20 L2 20 L22 4 L42 20 L38 20 L38 36" stroke="#e86b1a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-          <path d="M14 36 L14 22 L30 22 L30 36" stroke="#e86b1a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-          <line x1="10" y1="20" x2="10" y2="36" stroke="#e86b1a" stroke-width="2.5" stroke-linecap="round"/>
-          <line x1="34" y1="20" x2="34" y2="36" stroke="#e86b1a" stroke-width="2.5" stroke-linecap="round"/>
-          <circle cx="6" cy="8" r="2" fill="#e86b1a"/>
-          <circle cx="38" cy="8" r="2" fill="#e86b1a"/>
-          <path d="M6 8 Q22 1 38 8" stroke="#e86b1a" stroke-width="2" fill="none"/>
-        </svg>
-        <span class="logo-text">I<span class="logo-gear">⚙</span>T Bridge</span>
+        <img src="@/assets/logo-bridge-side.png" alt="Logo" class="side-logo-img" />
+        <img src="@/assets/jjudul-bridge.png" alt="IoT Bridge" class="logo-title-img" />
       </RouterLink>
     </div>
 
@@ -114,16 +106,15 @@ const emit = defineEmits(['closeSidebar', 'confirmLogout'])
   gap: 12px;
   text-decoration: none;
 }
-.logo-text {
-  font-size: 19px;
-  font-weight: 900;
-  color: var(--color-white);
-  letter-spacing: -0.5px;
-  line-height: 1.15;
+.side-logo-img {
+  height: 34px;
+  width: auto;
+  flex-shrink: 0;
 }
-.logo-gear {
-  color: var(--color-accent);
-  font-style: normal;
+.logo-title-img {
+  height: 20px;
+  width: auto;
+  margin-left: 2px;
 }
 .sidebar-nav {
   flex: 1;
@@ -196,7 +187,7 @@ const emit = defineEmits(['closeSidebar', 'confirmLogout'])
   justify-content: center;
   padding: 0;
 }
-.sidebar.mini .logo-text {
+.sidebar.mini .logo-title-img {
   display: none;
 }
 .sidebar.mini .nav-item {

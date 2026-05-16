@@ -64,7 +64,7 @@ function closePopup() {
   <div class="auth-page">
     <div class="auth-left">
       <div class="auth-illustration">
-        <img src="@/assets/animasi-page-first.png" alt="Ilustrasi Daftar" class="illust-img" />
+        <img src="@/assets/ikon daftar.png" alt="Ilustrasi Daftar" class="illust-img" />
       </div>
     </div>
 

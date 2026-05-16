@@ -66,6 +66,11 @@ function previewLogo(file) {
 }
 
 async function handleSave() {
+  if (!form.value.nama || !form.value.lokasi) {
+    alert('Harap lengkapi semua field yang wajib diisi (Nama Organisasi & Lokasi).')
+    return
+  }
+
   saving.value = true
   error.value = ''
   try {
@@ -81,7 +86,9 @@ async function handleSave() {
     showSuccessModal.value = true
     isEditing.value = false // Kembali ke mode lihat
   } catch (err) {
-    error.value = err?.message || 'Gagal memperbarui profil organisasi.'
+    const errMsg = err?.message || 'Gagal memperbarui profil organisasi.'
+    alert(errMsg)
+    error.value = errMsg
   } finally {
     saving.value = false
   }

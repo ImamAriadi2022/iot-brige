@@ -1,5 +1,5 @@
 <script setup>
-import { getOrganizationsList, proposeOrganization, unwrapApiList } from '@/services/api.js'
+import { getOrganizationsList, getOrganizationProfile, proposeOrganization, unwrapApiList } from '@/services/api.js'
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '../components/AppLayout.vue'
@@ -16,7 +16,21 @@ async function loadOrgs() {
   error.value = ''
   try {
     const data = await getOrganizationsList()
-    organizations.value = unwrapApiList(data)
+    const list = unwrapApiList(data)
+    
+    // Fetch profiles to get the organization picture if it's not included in the list response
+    const detailedList = await Promise.all(list.map(async (org) => {
+      if (org.organization_picture || org.logo_url || org.logo || org.picture || org.image) return org;
+      try {
+        const profileData = await getOrganizationProfile(org.id || org._id);
+        const profile = profileData?.data || profileData;
+        return { ...org, ...profile };
+      } catch (e) {
+        return org;
+      }
+    }));
+    
+    organizations.value = detailedList
   } catch (err) {
     error.value = err?.message || 'Gagal memuat daftar organisasi.'
   } finally {
@@ -65,7 +79,13 @@ onMounted(loadOrgs)
 
             <div class="org-card-content">
               <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                <div class="org-name">{{ org.name || org.nama }}</div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <img v-if="org.organization_picture || org.logo_url || org.logo || org.picture || org.image || org.profile_picture" :src="org.organization_picture || org.logo_url || org.logo || org.picture || org.image || org.profile_picture" alt="Logo" class="org-logo" />
+                  <div v-else class="org-logo-placeholder">
+                    {{ (org.name || org.nama || 'O')[0].toUpperCase() }}
+                  </div>
+                  <div class="org-name">{{ org.name || org.nama }}</div>
+                </div>
                 <div v-if="org.is_verified || org.isVerified || org.verified || ['verified', 'active', 'approved'].includes(String(org.status || org.verification_status || '').toLowerCase())" class="badge-verified">Terverifikasi</div>
                 <div v-else class="badge-unverified">Belum Terverifikasi</div>
               </div>
@@ -173,6 +193,9 @@ onMounted(loadOrgs)
 
 .org-name { font-size: 16px; font-weight: 700; color: var(--color-text); }
 .org-meta { font-size: 13px; color: var(--color-text-muted); line-height: 1.4; margin-top: 8px; }
+
+.org-logo { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 1px solid var(--color-border); }
+.org-logo-placeholder { width: 36px; height: 36px; border-radius: 50%; background: #eef4ff; color: var(--color-primary); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; border: 1px solid var(--color-border); }
 
 .badge-verified {
   font-size: 11px;

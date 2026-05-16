@@ -54,7 +54,7 @@ function closePopup() {
     <!-- Left panel -->
     <div class="auth-left">
       <div class="auth-illustration">
-        <img src="@/assets/animasi-page-first.png" alt="Ilustrasi Lupa Kata Sandi" class="illust-img" />
+        <img src="@/assets/login-illustrator.png" alt="Ilustrasi Lupa Kata Sandi" class="illust-img" />
       </div>
     </div>
 

@@ -6,6 +6,7 @@ import {
     getDevices,
     searchDevices,
     unwrapApiList,
+    setActiveOrganizationId
 } from '@/services/api.js'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -54,7 +55,17 @@ async function loadOrganizations() {
     const data = await getOrganizationsList()
     organizations.value = unwrapApiList(data)
     if (organizations.value.length > 0) {
-      selectedOrgId.value = organizations.value[0].id || organizations.value[0]._id
+      // Find the currently active one or fallback to the first
+      const activeId = localStorage.getItem('iot_bridge_org_id')
+      const found = organizations.value.find(o => String(o.id || o._id) === activeId)
+      
+      if (found) {
+        selectedOrgId.value = activeId
+      } else {
+        selectedOrgId.value = organizations.value[0].id || organizations.value[0]._id
+      }
+      
+      setActiveOrganizationId(String(selectedOrgId.value))
       loadDevices(selectedOrgId.value)
     }
   } catch (err) {
@@ -64,6 +75,7 @@ async function loadOrganizations() {
 
 async function onOrgChange() {
   if (selectedOrgId.value) {
+    setActiveOrganizationId(String(selectedOrgId.value))
     selectedDeviceId.value = 'all' // Reset device filter
     loadDevices(selectedOrgId.value)
   }
