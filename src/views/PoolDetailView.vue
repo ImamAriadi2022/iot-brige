@@ -35,6 +35,7 @@ const newWidget = ref({
 
 
 function mapWidget(w) {
+  const defVal = w?.default_value ?? w?.defaultValue ?? w?.default ?? ''
   return {
     id: w?.id || w?.widget_box_id || w?.widgetBoxId || w?._id,
     nama: w?.name || w?.nama || w?.label || 'Widget',
@@ -42,11 +43,26 @@ function mapWidget(w) {
     satuan: w?.unit || w?.satuan || w?.unit_name || w?.unitName || '',
     minValue: w?.min_value ?? w?.minValue ?? w?.min ?? '',
     maxValue: w?.max_value ?? w?.maxValue ?? w?.max ?? '',
-    defaultValue: w?.default_value ?? w?.defaultValue ?? w?.default ?? '',
-    currentValue: '--',
+    defaultValue: defVal,
+    currentValue: defVal !== '' ? defVal : '--',
   }
 }
 
+function getGaugeOffset(w) {
+  const min = parseFloat(w.minValue) || 0
+  const max = parseFloat(w.maxValue) || 100
+  let val = parseFloat(w.currentValue)
+  if (isNaN(val)) val = min
+  
+  let pct = (val - min) / (max - min)
+  // Handle case where max and min are equal to avoid division by zero
+  if (max === min) pct = 0
+  if (pct < 0) pct = 0
+  if (pct > 1) pct = 1
+  
+  const arcLength = 188.4955
+  return arcLength - (pct * arcLength)
+}
 
 async function loadWidgets() {
   loading.value = true
@@ -207,10 +223,10 @@ async function fetchCurrentValues() {
         const latest = dataList.sort((a, b) => new Date(b.time) - new Date(a.time))[0]
         w.currentValue = latest.value
       } else {
-        w.currentValue = '--'
+        w.currentValue = w.defaultValue !== '' ? w.defaultValue : '--'
       }
     } catch (err) {
-      w.currentValue = 'Err'
+      w.currentValue = w.defaultValue !== '' ? w.defaultValue : 'Err'
     }
   })
   
@@ -244,13 +260,43 @@ onUnmounted(() => {
         <div v-else-if="loading" class="widget-empty">Memuat widget...</div>
         <div v-else-if="widgets.length === 0" class="widget-empty">Belum ada widget.</div>
         <div v-for="w in widgets" :key="w.id" class="widget-card" @click="openEditModal(w)" style="cursor: pointer;">
-
           <div class="widget-title">{{ w.nama }}</div>
-          <div class="widget-value-row">
-            <div class="widget-value">{{ w.currentValue }} <span class="unit">{{ w.satuan }}</span></div>
+          
+          <div class="gauge-container">
+            <svg viewBox="0 0 100 100" class="gauge-svg">
+              <!-- Background arc -->
+              <circle
+                cx="50" cy="50" r="40"
+                fill="none"
+                stroke="#e2e8f0"
+                stroke-width="8"
+                stroke-linecap="round"
+                stroke-dasharray="188.5 251.3"
+                transform="rotate(135 50 50)"
+              />
+              <!-- Value arc -->
+              <circle
+                cx="50" cy="50" r="40"
+                fill="none"
+                stroke="var(--color-primary)"
+                stroke-width="8"
+                stroke-linecap="round"
+                stroke-dasharray="188.5 251.3"
+                :stroke-dashoffset="getGaugeOffset(w)"
+                transform="rotate(135 50 50)"
+                style="transition: stroke-dashoffset 0.5s ease"
+              />
+              <!-- Text inside gauge -->
+              <text x="50" y="55" text-anchor="middle" font-size="14" font-weight="800" fill="var(--color-text)">
+                {{ w.currentValue }} {{ w.satuan }}
+              </text>
+            </svg>
           </div>
-          <div class="widget-meta">Pin: {{ w.pin }}</div>
-          <div class="widget-range">Min: {{ w.minValue || '-' }} | Max: {{ w.maxValue || '-' }}</div>
+
+          <div class="widget-footer">
+            <div class="widget-meta">Pin: {{ w.pin }}</div>
+            <div class="widget-range">Min: {{ w.minValue || '-' }} | Max: {{ w.maxValue || '-' }}</div>
+          </div>
         </div>
 
       </div>
@@ -331,30 +377,55 @@ onUnmounted(() => {
 .back-btn:hover { color: var(--color-accent); }
 
 .widget-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
 }
 .widget-empty {
   text-align: center;
   color: var(--color-text-light);
   padding: 24px 0;
+  grid-column: 1 / -1;
 }
 .widget-empty.error { color: var(--color-danger); }
 .widget-card {
   background: white;
   border-radius: var(--radius-lg);
-  padding: 20px 22px;
+  padding: 20px;
   box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 12px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.widget-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(30,58,95,0.08);
 }
 .widget-title { font-size: 16px; font-weight: 800; color: var(--color-text); }
-.widget-value-row { display: flex; align-items: baseline; gap: 8px; margin: 8px 0; }
-.widget-value { font-size: 28px; font-weight: 800; color: var(--color-primary); }
-.widget-value .unit { font-size: 14px; font-weight: 600; color: var(--color-text-muted); }
-.widget-meta, .widget-range { font-size: 13px; color: var(--color-text-muted); }
+
+.gauge-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 10px 0;
+}
+.gauge-svg {
+  width: 140px;
+  height: 140px;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.05));
+}
+.widget-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+.widget-meta, .widget-range { font-size: 12px; color: var(--color-text-muted); font-weight: 500; }
 
 
 .widget-fab {

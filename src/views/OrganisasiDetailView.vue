@@ -173,7 +173,7 @@ async function handleInvite(user) {
 async function handleChangeRole(member) {
   try {
     const payload = {
-      user_id: String(member.id),
+      user_id: String(member.user_id || member.id),
       new_role: member.role
     }
     await changeMemberRoles(organizationId.value, payload)
@@ -207,7 +207,7 @@ async function handleLeaveOrganization() {
 
   // Cari user saat ini di dalam daftar anggota
   const currentUserInList = members.value.find(m => 
-    (currentUserId.value && String(m.id) === String(currentUserId.value)) || 
+    (currentUserId.value && String(m.user_id || m.id) === String(currentUserId.value)) || 
     (currentEmail && m.email === currentEmail)
   )
   
@@ -411,7 +411,7 @@ onMounted(loadOrganization)
         <h4 class="sub-title" style="margin-top: 16px;">Daftar Anggota Saat Ini</h4>
         <div class="members-list">
           <div v-if="members.length === 0" class="empty-members">Belum ada anggota.</div>
-          <div v-for="m in members" :key="m.id" class="member-card">
+          <div v-for="m in members" :key="m.user_id || m.id" class="member-card">
             <div class="member-info">
               <div class="member-name">{{ m.name || m.username }}</div>
               <div class="member-email">{{ m.email }}</div>
