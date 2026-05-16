@@ -64,7 +64,11 @@ onMounted(loadOrgs)
           <div v-for="org in organizations" :key="org.id" class="org-card" @click="router.push({ path: '/organisasi/' + org.id, query: { name: org.name || org.nama } })">
 
             <div class="org-card-content">
-              <div class="org-name">{{ org.name || org.nama }}</div>
+              <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div class="org-name">{{ org.name || org.nama }}</div>
+                <div v-if="org.is_verified || org.isVerified || org.verified || ['verified', 'active', 'approved'].includes(String(org.status || org.verification_status || '').toLowerCase())" class="badge-verified">Terverifikasi</div>
+                <div v-else class="badge-unverified">Belum Terverifikasi</div>
+              </div>
               <div class="org-meta">{{ org.description || 'Tidak ada deskripsi' }}</div>
             </div>
             <div class="org-card-action">
@@ -168,7 +172,25 @@ onMounted(loadOrgs)
 .org-card:hover { border-color: var(--color-primary); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
 
 .org-name { font-size: 16px; font-weight: 700; color: var(--color-text); }
-.org-meta { font-size: 13px; color: var(--color-text-muted); line-height: 1.4; }
+.org-meta { font-size: 13px; color: var(--color-text-muted); line-height: 1.4; margin-top: 8px; }
+
+.badge-verified {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  background: #def7ec;
+  color: #03543f;
+  border-radius: 12px;
+}
+
+.badge-unverified {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  background: #fef08a;
+  color: #713f12;
+  border-radius: 12px;
+}
 
 .org-card-action {
   display: flex;

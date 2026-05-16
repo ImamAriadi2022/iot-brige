@@ -12,8 +12,15 @@ import {
 } from '@/services/api.js'
 
 import { getNotificationMode, isLocalNotificationEnabled, showBrowserNotification } from '@/utils/notifications.js'
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
+
+const user = computed(() => {
+  const u = localStorage.getItem('iot_bridge_user')
+  return u ? JSON.parse(u) : { id: 'guest', name: 'Pengguna', email: '' }
+})
+const notifSeenKey = computed(() => `iot_bridge_notif_seen_${user.value.id || 'guest'}`)
+const notifSeenIds = ref(new Set(JSON.parse(localStorage.getItem(notifSeenKey.value) || '[]')))
 
 const selectedDevice = ref('')
 const devices = ref([{ id: '', label: 'Pilih perangkat...' }])
@@ -196,6 +203,24 @@ async function handleDeleteGlobalNotif(id) {
   }
 }
 
+import { deleteAllNotifications } from '@/services/api.js'
+
+async function handleClearAll() {
+  if (!confirm('Hapus semua notifikasi?')) return
+  try {
+    await deleteAllNotifications()
+    await loadGlobalNotifications()
+  } catch (err) {
+    error.value = err?.message || 'Gagal menghapus semua notifikasi.'
+  }
+}
+
+function handleMarkAllRead() {
+  globalNotifications.value.forEach(n => notifSeenIds.value.add(n.id))
+  localStorage.setItem(notifSeenKey.value, JSON.stringify(Array.from(notifSeenIds.value)))
+  alert('Semua notifikasi telah ditandai dibaca.')
+}
+
 watch(activeTab, (newTab) => {
   if (newTab === 'messages' && globalNotifications.value.length === 0) {
     loadGlobalNotifications()
@@ -314,12 +339,17 @@ async function handleRejectInvite(notif) {
 
       <!-- Tab 2: Pesan Masuk -->
       <div v-if="activeTab === 'messages'" class="tab-content">
+        <div class="notif-actions-row" v-if="globalNotifications.length > 0">
+          <button class="btn-secondary btn-sm" @click="handleMarkAllRead">Tandai Semua Dibaca</button>
+          <button class="btn-danger-outline btn-sm" @click="handleClearAll">Hapus Semua</button>
+        </div>
+
         <div v-if="error" class="notif-empty error">{{ error }}</div>
         <div v-else-if="loading" class="notif-empty">Memuat notifikasi...</div>
         <div v-else-if="globalNotifications.length === 0" class="notif-empty">Belum ada notifikasi masuk.</div>
         <div v-else class="notif-list">
           <div v-for="n in globalNotifications" :key="n.id" class="notif-item">
-            <div class="notif-content">
+            <div class="notif-content" :class="{ 'is-read': notifSeenIds.has(n.id) }">
               <div class="notif-title">{{ n.title }}</div>
               <div class="notif-message">{{ n.message }}</div>
               <div class="notif-time">{{ n.time }}</div>
@@ -378,6 +408,38 @@ async function handleRejectInvite(notif) {
 .btn-sm {
   padding: 4px 12px;
   font-size: 12px;
+}
+.notif-actions-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.btn-secondary {
+  background: white;
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 600;
+  transition: var(--transition);
+}
+.btn-secondary:hover {
+  background: var(--color-primary);
+  color: white;
+}
+.btn-danger-outline {
+  background: white;
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 600;
+  transition: var(--transition);
+}
+.btn-danger-outline:hover {
+  background: var(--color-danger);
+  color: white;
 }
 
 .tabs {
@@ -485,6 +547,7 @@ async function handleRejectInvite(notif) {
 .notif-title { font-weight: 700; color: var(--color-text); font-size: 14px; }
 .notif-message { font-size: 13px; color: var(--color-text-muted); }
 .notif-time { font-size: 12px; color: var(--color-text-light); }
+.notif-content.is-read .notif-title { font-weight: 500; color: var(--color-text-muted); }
 
 .btn-accent {
   padding: 12px 20px;

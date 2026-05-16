@@ -51,10 +51,8 @@ function closePopup() {
   </Transition>
 
   <div class="auth-page">
-    <!-- ── Left panel ── -->
+    <!-- Left panel -->
     <div class="auth-left">
-      <div class="auth-blob"></div>
-      <div class="auth-blob auth-blob-2"></div>
       <div class="auth-illustration">
         <img src="@/assets/animasi-page-first.png" alt="Ilustrasi Lupa Kata Sandi" class="illust-img" />
       </div>
@@ -132,65 +130,59 @@ function closePopup() {
   display: flex;
 }
 
-/* ── Left panel ── */
+/* LEFT */
 .auth-left {
-  width: 50%;
-  background: var(--color-primary);
+  width: 40%;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
 }
-.auth-blob {
+.auth-left::before {
+  content: '';
   position: absolute;
-  right: -100px;
-  top: -80px;
-  width: 520px;
-  height: 520px;
-  background: rgba(255,255,255,0.055);
-  border-radius: 50%;
+  inset: 0;
+  background: var(--color-primary);
+  clip-path: ellipse(85% 91% at 15% 50%);
   pointer-events: none;
 }
-.auth-blob-2 {
-  right: auto;
-  left: -120px;
-  top: auto;
-  bottom: -100px;
-  width: 380px;
-  height: 380px;
-  background: rgba(232,107,26,0.1);
+.auth-left::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--color-primary-light);
+  clip-path: ellipse(84% 92% at 15% 50%);
+  pointer-events: none;
 }
 .auth-illustration {
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 420px;
+  max-width: 500px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 24px 34px;
 }
 .illust-img {
   width: 100%;
   height: auto;
   object-fit: contain;
-  filter: drop-shadow(0 8px 24px rgba(0,0,0,0.22));
-  border-radius: 16px;
 }
 
-/* ── Right panel ── */
+/* RIGHT */
 .auth-right {
-  width: 50%;
+  width: 60%;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 48px 28px;
-  background: var(--color-white);
+  padding: 24px 18px;
+  background: transparent;
 }
 .auth-form-wrap {
   width: 100%;
-  max-width: 400px;
+  max-width: 316px;
 }
 
 /* ── Logo ── */
@@ -380,10 +372,25 @@ function closePopup() {
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
-  .auth-page { flex-direction: column; }
-  .auth-left { width: 100%; min-height: 260px; }
-  .auth-illustration { max-width: 280px; padding: 16px; }
-  .auth-right { width: 100%; padding: 36px 20px; }
+  .auth-page {
+    flex-direction: column;
+    background: #ffffff;
+  }
+  .auth-left {
+    width: 100%;
+    min-height: 220px;
+  }
+  .auth-left::before {
+    clip-path: ellipse(100% 120% at 50% 0%);
+  }
+  .auth-left::after {
+    clip-path: ellipse(72% 92% at 50% 0%);
+  }
+  .auth-illustration { max-width: 280px; padding: 10px 16px 20px; }
+  .auth-right {
+    width: 100%;
+    padding: 24px 20px 30px;
+  }
 }
 
 /* ── Popup Modal ── */

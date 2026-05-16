@@ -3,6 +3,7 @@ import { RouterLink } from 'vue-router'
 
 defineProps({
   sidebarOpen: Boolean,
+  sidebarMini: Boolean,
   navItems: Array,
   isActive: Function,
 })
@@ -11,7 +12,7 @@ const emit = defineEmits(['closeSidebar', 'confirmLogout'])
 </script>
 
 <template>
-  <aside class="sidebar" :class="{ open: sidebarOpen }">
+  <aside class="sidebar" :class="{ open: sidebarOpen, mini: sidebarMini }">
     <div class="sidebar-logo">
       <RouterLink to="/dashboard" @click="$emit('closeSidebar')">
         <svg width="44" height="40" viewBox="0 0 44 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -185,5 +186,33 @@ const emit = defineEmits(['closeSidebar', 'confirmLogout'])
   color: rgba(255,255,255,0.25);
   text-align: center;
   line-height: 1.5;
+}
+
+/* MINI SIDEBAR STATES */
+.sidebar.mini {
+  width: 70px;
+}
+.sidebar.mini .sidebar-logo a {
+  justify-content: center;
+  padding: 0;
+}
+.sidebar.mini .logo-text {
+  display: none;
+}
+.sidebar.mini .nav-item {
+  justify-content: center;
+  padding: 12px;
+}
+.sidebar.mini .nav-item span {
+  display: none;
+}
+.sidebar.mini .sidebar-actions .logout-btn {
+  justify-content: center;
+}
+.sidebar.mini .sidebar-actions .logout-btn span {
+  display: none;
+}
+.sidebar.mini .sidebar-footer {
+  display: none;
 }
 </style>

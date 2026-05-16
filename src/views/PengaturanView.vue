@@ -50,6 +50,10 @@ async function requestPermission() {
   }
 }
 
+function revokePermission() {
+  alert('Untuk membatalkan izin, klik ikon gembok pada bilah alamat URL (address bar) browser, lalu matikan atau reset izin Notifikasi.')
+}
+
 onMounted(() => {
   if (typeof Notification !== 'undefined') {
     permissionStatus.value = Notification.permission
@@ -85,6 +89,9 @@ onMounted(() => {
             </span>
             <button v-if="permissionStatus !== 'granted'" class="btn-secondary" @click="requestPermission">
               Minta Izin
+            </button>
+            <button v-else class="btn-danger-outline" @click="revokePermission">
+              Batal Izin
             </button>
           </div>
           <p class="hint-text">Aplikasi membutuhkan izin browser untuk memunculkan notifikasi langsung di layar komputer/HP Anda.</p>
@@ -173,6 +180,13 @@ onMounted(() => {
   font-size: 13px; font-weight: 700; cursor: pointer; transition: var(--transition);
 }
 .btn-secondary:hover { background: var(--color-primary); color: white; }
+
+.btn-danger-outline {
+  padding: 8px 16px; background: white; color: var(--color-danger);
+  border: 1.5px solid var(--color-danger); border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: 700; cursor: pointer; transition: var(--transition);
+}
+.btn-danger-outline:hover { background: var(--color-danger); color: white; }
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }

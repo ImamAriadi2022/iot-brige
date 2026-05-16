@@ -141,14 +141,14 @@ async function handleSave() {
 </template>
 
 <style scoped>
-.change-pw-page { display: flex; }
+.change-pw-page { display: flex; justify-content: center; }
 .change-pw-card {
   background: white;
   border-radius: var(--radius-lg);
   padding: 36px;
   box-shadow: var(--shadow-sm);
   width: 100%;
-  max-width: 480px;
+  max-width: 560px;
 }
 .card-title { font-size: 18px; font-weight: 700; color: var(--color-text); margin-bottom: 28px; }
 .pw-form { display: flex; flex-direction: column; gap: 20px; }

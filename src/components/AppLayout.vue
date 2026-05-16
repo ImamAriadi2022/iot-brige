@@ -1,7 +1,7 @@
 <script setup>
-import { clearSession, getNotifications } from '@/services/api.js'
+import { clearSession, getNotifications, deleteAllNotifications } from '@/services/api.js'
 import { getNotificationMode, isLocalNotificationEnabled, showBrowserNotification } from '@/utils/notifications.js'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Sidebar from './Sidebar.vue'
 
@@ -12,19 +12,27 @@ const props = defineProps({
 const router = useRouter()
 const route = useRoute()
 const sidebarOpen = ref(false)
+const sidebarMini = ref(JSON.parse(localStorage.getItem('iot_bridge_sidebar_mini') || 'false'))
+
+watch(sidebarMini, (val) => {
+  localStorage.setItem('iot_bridge_sidebar_mini', JSON.stringify(val))
+})
 const userMenuOpen = ref(false)
 const notifMenuOpen = ref(false)
 const showLogoutModal = ref(false)
 const globalNotifications = ref([])
 const notifLoading = ref(false)
 const notifError = ref('')
-const notifSeenIds = new Set()
-let notifTimer = null
 
 const user = computed(() => {
   const u = localStorage.getItem('iot_bridge_user')
-  return u ? JSON.parse(u) : { name: 'Pengguna', email: '' }
+  return u ? JSON.parse(u) : { id: 'guest', name: 'Pengguna', email: '' }
 })
+
+const notifSeenKey = computed(() => `iot_bridge_notif_seen_${user.value.id || 'guest'}`)
+const notifSeenIds = ref(new Set(JSON.parse(localStorage.getItem(notifSeenKey.value) || '[]')))
+
+let notifTimer = null
 
 const navItems = [
   { label: 'Dashboard', path: '/dashboard', icon: 'dashboard' },
@@ -40,11 +48,17 @@ function isActive(path) {
 }
 
 function toggleSidebar() {
-  sidebarOpen.value = !sidebarOpen.value
+  if (window.innerWidth <= 768) {
+    sidebarOpen.value = !sidebarOpen.value
+  } else {
+    sidebarMini.value = !sidebarMini.value
+  }
 }
 
 function closeSidebar() {
-  sidebarOpen.value = false
+  if (window.innerWidth <= 768) {
+    sidebarOpen.value = false
+  }
 }
 
 function toggleUserMenu() {
@@ -114,8 +128,8 @@ async function loadGlobalNotifications() {
     console.log('[loadGlobalNotifications] Mode:', mode, 'LocalEnabled:', localNotificationEnabled, 'Count:', mapped.length)
 
     mapped.forEach((item) => {
-      if (!notifSeenIds.has(item.id)) {
-        notifSeenIds.add(item.id)
+      if (!notifSeenIds.value.has(item.id)) {
+        notifSeenIds.value.add(item.id)
         if (localNotificationEnabled) {
           // eslint-disable-next-line no-console
           console.log('[loadGlobalNotifications] Showing Browser Notif:', item.title)
@@ -123,6 +137,9 @@ async function loadGlobalNotifications() {
         }
       }
     })
+    
+    // Save to localStorage
+    localStorage.setItem(notifSeenKey.value, JSON.stringify(Array.from(notifSeenIds.value)))
 
     globalNotifications.value = mapped
 
@@ -130,6 +147,16 @@ async function loadGlobalNotifications() {
     notifError.value = err?.message || 'Gagal memuat notifikasi.'
   } finally {
     notifLoading.value = false
+  }
+}
+
+async function handleClearAll() {
+  if (!confirm('Hapus semua notifikasi?')) return
+  try {
+    await deleteAllNotifications()
+    await loadGlobalNotifications()
+  } catch (err) {
+    notifError.value = err?.message || 'Gagal menghapus semua notifikasi.'
   }
 }
 
@@ -145,12 +172,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="layout">
+  <div class="layout" :class="{ 'sidebar-mini': sidebarMini }">
     <!-- Sidebar Overlay (mobile) -->
     <div class="sidebar-overlay" :class="{ active: sidebarOpen }" @click="closeSidebar"></div>
 
     <!-- Sidebar -->
-    <Sidebar :sidebar-open="sidebarOpen" :nav-items="navItems" :is-active="isActive" @close-sidebar="closeSidebar" @confirm-logout="confirmLogout" />
+    <Sidebar :sidebar-open="sidebarOpen" :sidebar-mini="sidebarMini" :nav-items="navItems" :is-active="isActive" @close-sidebar="closeSidebar" @confirm-logout="confirmLogout" />
 
 
     <!-- Main Content -->
@@ -177,7 +204,10 @@ onUnmounted(() => {
             <div v-if="notifMenuOpen" class="notif-dropdown">
               <div class="notif-dropdown-head">
                 <span>Semua Notifikasi</span>
-                <button class="notif-refresh" @click="loadGlobalNotifications">Muat ulang</button>
+                <div class="notif-head-actions">
+                  <button class="notif-action-btn danger" v-if="globalNotifications.length > 0" @click="handleClearAll">Hapus Semua</button>
+                  <button class="notif-action-btn" @click="loadGlobalNotifications">Muat ulang</button>
+                </div>
               </div>
               <div v-if="notifError" class="notif-dropdown-empty error">{{ notifError }}</div>
               <div v-else-if="notifLoading" class="notif-dropdown-empty">Memuat...</div>
@@ -281,6 +311,11 @@ onUnmounted(() => {
   flex-direction: column;
   min-height: 100vh;
   min-width: 0;
+  transition: margin-left 0.3s cubic-bezier(0.4,0,0.2,1);
+}
+
+.layout.sidebar-mini .main-wrap {
+  margin-left: 70px;
 }
 
 /* ===== TOPBAR ===== */
@@ -303,7 +338,7 @@ onUnmounted(() => {
   gap: 14px;
 }
 .hamburger {
-  display: none;
+  display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
@@ -404,13 +439,26 @@ onUnmounted(() => {
   color: var(--color-text);
 }
 
-.notif-refresh {
+.notif-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notif-action-btn {
   border: none;
   background: none;
   color: var(--color-primary);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  transition: var(--transition);
+}
+.notif-action-btn:hover {
+  text-decoration: underline;
+}
+.notif-action-btn.danger {
+  color: var(--color-danger);
 }
 
 .notif-dropdown-empty {
