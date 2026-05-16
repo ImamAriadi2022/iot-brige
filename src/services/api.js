@@ -17,11 +17,7 @@ async function request(path, options = {}) {
     ...(options.headers || {}),
   }
 
-
   const res = await fetch(`${BASE_URL}${path}`, {
-
-
-
     ...options,
     headers,
   })
@@ -343,8 +339,10 @@ export function deleteWidgetBox(organizationId, deviceId, widgetBoxId) {
   })
 }
 
-export function getDeviceReport(organizationId, deviceId, params = {}) {
-  return request(`/organizations/${organizationId}/devices/${deviceId}/report${toQuery(params)}`)
+export function getDeviceReport(organizationId, deviceId, params = {}, signal = undefined) {
+  return request(`/organizations/${organizationId}/devices/${deviceId}/report${toQuery(params)}`, {
+    ...(signal ? { signal } : {}),
+  })
 }
 
 export function createNotificationEvent(organizationId, deviceId, body) {
