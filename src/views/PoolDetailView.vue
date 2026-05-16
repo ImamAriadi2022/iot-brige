@@ -25,7 +25,6 @@ const pollTimer = ref(null)
 
 
 const newWidget = ref({
-  id: '',
   nama: '',
   pin: '',
   satuan: '',
@@ -118,14 +117,8 @@ async function addWidget() {
     return
   }
   
-  if (!newWidget.value.id) {
-    error.value = 'ID Widget harus diisi.'
-    return
-  }
-
   try {
     const payload = {
-      id: newWidget.value.id,
       name: newWidget.value.nama,
       pin: newWidget.value.pin,
       unit: newWidget.value.satuan || '',
@@ -141,7 +134,7 @@ async function addWidget() {
     // eslint-disable-next-line no-console
     console.log('[addWidget] Success Response:', resp)
 
-    newWidget.value = { id: '', nama: '', pin: '', satuan: '', minValue: '', maxValue: '', defaultValue: '' }
+    newWidget.value = { nama: '', pin: '', satuan: '', minValue: '', maxValue: '', defaultValue: '' }
 
     showAddModal.value = false
     await loadWidgets()
@@ -277,7 +270,6 @@ onUnmounted(() => {
             </div>
             <form class="modal-form" @submit.prevent="addWidget">
               <div v-if="error" class="error-text" style="color: var(--color-danger); font-size: 13px; margin-bottom: 8px;">{{ error }}</div>
-              <input v-model="newWidget.id" class="form-input" type="text" placeholder="ID Widget (harus teks)" required />
               <input v-model="newWidget.nama" class="form-input" type="text" placeholder="Nama Widget" required />
 
               <input v-model="newWidget.pin" class="form-input" type="text" placeholder="Pin" required />

@@ -174,7 +174,7 @@ async function handleChangeRole(member) {
   try {
     const payload = {
       user_id: String(member.id),
-      role: member.role
+      new_role: member.role
     }
     await changeMemberRoles(organizationId.value, payload)
     alert(`Berhasil mengubah role ${member.name || member.username} menjadi ${member.role}`)
