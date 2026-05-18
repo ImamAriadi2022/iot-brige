@@ -8,7 +8,8 @@ import {
   memberInvitation,
   searchUsers,
   changeMemberRoles,
-  deleteMember
+  deleteMember,
+  leaveOrganization
 } from '@/services/api.js'
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -178,6 +179,14 @@ async function handleInvite(user) {
 }
 
 async function handleChangeRole(member) {
+  // Karena menggunakan v-model, `member.role` sudah berisi role yang baru dipilih
+  const adminCount = members.value.filter(m => m.role?.toLowerCase().includes('admin')).length
+  if (adminCount === 0) {
+    alert('Harus ada setidaknya satu admin di dalam organisasi. Tunjuk admin baru terlebih dahulu sebelum mengubah role ini.')
+    await loadMembers() // Kembalikan state UI ke role semula
+    return
+  }
+
   try {
     const payload = {
       user_id: String(member.user_id || member.id),
@@ -200,16 +209,25 @@ async function handleLeaveOrganization() {
     return
   }
 
-  // Ambil profil untuk memastikan data terbaru
+  // Ambil profil dari cache local atau fetch (untuk fallback)
   let currentEmail = ''
-  try {
-    const myProfileRes = await getProfile()
+  const localUserStr = localStorage.getItem('iot_bridge_user')
+  if (localUserStr) {
+    const localUser = JSON.parse(localUserStr)
+    currentUserId.value = localUser.id || localUser.user_id || localUser._id
+    currentEmail = localUser.email
+  }
 
-    const myProfile = myProfileRes?.data?.user || myProfileRes?.user || myProfileRes
-    currentUserId.value = myProfile?.id
-    currentEmail = myProfile?.email
-  } catch (e) {
-    // Ignore error
+  // Jika belum dapat ID, coba panggil API
+  if (!currentUserId.value) {
+    try {
+      const myProfileRes = await getProfile()
+      const myProfile = myProfileRes?.data?.user || myProfileRes?.user || myProfileRes
+      currentUserId.value = myProfile?.id
+      currentEmail = myProfile?.email || currentEmail
+    } catch (e) {
+      // Ignore error
+    }
   }
 
   // Cari user saat ini di dalam daftar anggota
@@ -221,7 +239,7 @@ async function handleLeaveOrganization() {
   // Cek apakah user saat ini adalah admin (mengandung kata 'admin')
   const isCurrentAdmin = currentUserInList?.role?.toLowerCase().includes('admin')
   
-  // Hitung jumlah admin (mengandung kata 'admin')
+  // Hitung jumlah admin yang ada di organisasi
   const adminMembers = members.value.filter(m => m.role?.toLowerCase().includes('admin'))
   
   // Jika dia adalah admin dan jumlah admin hanya 1 (atau kurang), maka tidak boleh keluar
@@ -230,12 +248,10 @@ async function handleLeaveOrganization() {
     return
   }
 
-
-  
   if (!confirm('Apakah Anda yakin ingin keluar dari organisasi ini?')) return
   
   try {
-    await deleteMember(organizationId.value, currentUserId.value)
+    await leaveOrganization(organizationId.value)
     alert('Anda telah berhasil keluar dari organisasi.')
     router.push('/organisasi')
   } catch (err) {

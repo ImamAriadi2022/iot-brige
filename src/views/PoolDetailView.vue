@@ -6,6 +6,7 @@ import {
     unwrapApiList,
     upsertWidgetBoxes,
     createWidgetBox,
+    deleteWidgetBox,
 } from '@/services/api.js'
 
 
@@ -205,6 +206,17 @@ async function saveEditWidget() {
   }
 }
 
+async function deleteWidget() {
+  if (!confirm('Apakah Anda yakin ingin menghapus widget ini?')) return
+  try {
+    await deleteWidgetBox(orgId.value, deviceId.value, editingWidget.value.id)
+    showEditModal.value = false
+    await loadWidgets()
+  } catch (err) {
+    error.value = err?.message || 'Gagal menghapus widget.'
+  }
+}
+
 async function fetchCurrentValues() {
 
   if (!orgId.value || !deviceId.value || widgets.value.length === 0) return
@@ -346,9 +358,12 @@ onUnmounted(() => {
               <input v-model="editingWidget.minValue" class="form-input" type="number" placeholder="Min Value" />
               <input v-model="editingWidget.maxValue" class="form-input" type="number" placeholder="Max Value" />
               <input v-model="editingWidget.defaultValue" class="form-input" type="number" placeholder="Default Value" />
-              <div class="modal-actions">
-                <button type="button" class="btn-text" @click="showEditModal = false">Tutup</button>
-                <button type="submit" class="btn-primary">Simpan</button>
+              <div class="modal-actions" style="justify-content: space-between;">
+                <button type="button" class="btn-danger-outline" @click="deleteWidget">Hapus</button>
+                <div style="display: flex; gap: 8px;">
+                  <button type="button" class="btn-text" @click="showEditModal = false">Tutup</button>
+                  <button type="submit" class="btn-primary">Simpan</button>
+                </div>
               </div>
             </form>
           </div>
@@ -501,6 +516,14 @@ onUnmounted(() => {
   transition: var(--transition);
 }
 .btn-primary:hover { background: var(--color-primary-dark); }
+
+.btn-danger-outline {
+  padding: 8px 16px; background: white; color: var(--color-danger);
+  border: 1.5px solid var(--color-danger); border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: 700; cursor: pointer; transition: var(--transition);
+  display: flex; align-items: center; gap: 6px;
+}
+.btn-danger-outline:hover { background: var(--color-danger); color: white; }
 
 .modal-enter-active, .modal-leave-active { transition: all 0.25s ease; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }

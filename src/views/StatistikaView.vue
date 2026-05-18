@@ -3,17 +3,22 @@ import {
     ensureOrganizationId,
     getDeviceReport,
     getPinList,
+    getWidgetBoxList,
     searchDevices,
     unwrapApiList,
 } from '@/services/api.js'
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import * as XLSX from 'xlsx'
 import AppLayout from '../components/AppLayout.vue'
+
+const router = useRouter()
 
 const fromDate = ref('')
 const toDate = ref('')
 const selectedPin = ref('')
 const selectedDeviceId = ref('')
+const devices = ref([])
 const pins = ref([{ value: '', label: '-- Pilih Pin --' }])
 const loading = ref(false)
 const error = ref('')
@@ -70,7 +75,6 @@ async function loadDevicesAndPins() {
   error.value = ''
   startLoading(false)
   try {
-    // Get orgId and devices in a single pass — orgId cached after first call
     orgId.value = await ensureOrganizationId()
     if (!orgId.value) {
       error.value = 'Organisasi belum tersedia untuk akun ini.'
@@ -79,8 +83,8 @@ async function loadDevicesAndPins() {
 
     const deviceData = await searchDevices(orgId.value)
     const deviceList = unwrapApiList(deviceData)
+    devices.value = deviceList
 
-    // Check if device is provided in query
     const routeParams = new URLSearchParams(window.location.search)
     const queryDevice = routeParams.get('device')
 
@@ -95,24 +99,56 @@ async function loadDevicesAndPins() {
     selectedDeviceId.value = String(
       targetDevice?.id || targetDevice?.device_id || targetDevice?.deviceId || targetDevice?._id || ''
     )
-    if (!selectedDeviceId.value) return
-
-    // Fetch pin list for selected device
-    const pinData = await getPinList(orgId.value, selectedDeviceId.value)
-    const pinList = unwrapApiList(pinData)
-    const mapped = pinList
-      .map(p => ({
-        value: p?.pin || p?.pin_number || p?.name || String(p),
-        label: p?.label || p?.name || p?.pin || String(p),
-      }))
-      .filter(p => p.value)
-    pins.value = [{ value: '', label: '-- Pilih Pin --' }, ...mapped]
+    if (selectedDeviceId.value) {
+      await loadPinsForSelectedDevice()
+    }
   } catch (err) {
     if (err?.name === 'AbortError') return
     error.value = err?.message || 'Gagal memuat data perangkat.'
   } finally {
     loading.value = false
     stopLoading()
+  }
+}
+
+async function loadPinsForSelectedDevice() {
+  if (!selectedDeviceId.value || !orgId.value) {
+    pins.value = [{ value: '', label: '-- Pilih Pin --' }]
+    selectedPin.value = ''
+    return
+  }
+  try {
+    const pinData = await getPinList(orgId.value, selectedDeviceId.value).catch(() => ([]))
+    const pinList = unwrapApiList(pinData) || []
+    const mappedPins = pinList
+      .map(p => ({
+        value: p?.pin || p?.pin_number || p?.name || String(p),
+        label: p?.label || p?.name || p?.pin || String(p),
+      }))
+      .filter(p => p.value && p.value !== '[object Object]')
+
+    // Fallback: also fetch widgets to extract their pins
+    const widgetData = await getWidgetBoxList(orgId.value, selectedDeviceId.value).catch(() => ([]))
+    const widgetList = unwrapApiList(widgetData) || []
+    widgetList.forEach(w => {
+      const wPin = w?.pin || w?.pin_number || w?.pinNumber
+      if (wPin && !mappedPins.find(m => m.value === wPin)) {
+        mappedPins.push({ value: wPin, label: `${wPin} (Widget: ${w?.name || w?.nama || 'Tanpa Nama'})` })
+      }
+    })
+
+    pins.value = [{ value: '', label: '-- Pilih Pin --' }, ...mappedPins]
+    
+    // Auto-select first pin if available
+    if (mappedPins.length > 0) {
+      selectedPin.value = mappedPins[0].value
+    } else {
+      selectedPin.value = ''
+    }
+  } catch (err) {
+    console.warn('Gagal memuat pin:', err)
+    pins.value = [{ value: '', label: '-- Pilih Pin --' }]
+    selectedPin.value = ''
   }
 }
 
@@ -267,6 +303,13 @@ onMounted(loadDevicesAndPins)
     </Transition>
 
     <div class="stat-page">
+      <button class="back-btn" @click="router.push('/perangkat')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+        Kembali ke Perangkat
+      </button>
+
       <div class="date-row">
         <div class="date-field">
           <label class="field-label">Dari Tanggal &amp; Jam</label>
@@ -275,6 +318,19 @@ onMounted(loadDevicesAndPins)
         <div class="date-field">
           <label class="field-label">Sampai Tanggal &amp; Jam</label>
           <input v-model="toDate" type="datetime-local" class="field-input" />
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="device-select">Pilih Perangkat</label>
+        <div class="select-wrap">
+          <select id="device-select" v-model="selectedDeviceId" class="select-input" @change="loadPinsForSelectedDevice">
+            <option value="">-- Pilih Perangkat --</option>
+            <option v-for="d in devices" :key="d.id || d._id" :value="d.id || d._id">{{ d.name || d.nama || 'Perangkat Tanpa Nama' }}</option>
+          </select>
+          <svg class="select-caret" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
         </div>
       </div>
 
@@ -395,6 +451,15 @@ onMounted(loadDevicesAndPins)
   flex-direction: column;
   gap: 18px;
 }
+.back-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: none; border: none; cursor: pointer;
+  font-size: 14px; font-weight: 600; color: var(--color-primary);
+  padding: 0; width: fit-content;
+  transition: var(--transition);
+  margin-bottom: 4px;
+}
+.back-btn:hover { color: var(--color-primary-dark); text-decoration: underline; }
 .date-row {
   display: grid;
   grid-template-columns: 1fr 1fr;

@@ -9,6 +9,7 @@ import {
   deleteNotificationById,
   searchDevices,
   unwrapApiList,
+  memberInvitationResponse,
 } from '@/services/api.js'
 
 import { getNotificationMode, isLocalNotificationEnabled, showBrowserNotification } from '@/utils/notifications.js'
@@ -20,7 +21,10 @@ const user = computed(() => {
   return u ? JSON.parse(u) : { id: 'guest', name: 'Pengguna', email: '' }
 })
 const notifSeenKey = computed(() => `iot_bridge_notif_seen_${user.value.id || 'guest'}`)
+const notifReadKey = computed(() => `iot_bridge_notif_read_${user.value.id || 'guest'}`)
+
 const notifSeenIds = ref(new Set(JSON.parse(localStorage.getItem(notifSeenKey.value) || '[]')))
+const notifReadIds = ref(new Set(JSON.parse(localStorage.getItem(notifReadKey.value) || '[]')))
 
 const selectedDevice = ref('')
 const devices = ref([{ id: '', label: 'Pilih perangkat...' }])
@@ -171,11 +175,25 @@ async function handleDeleteEvent(eventId) {
 }
 
 function mapGlobalNotification(item) {
+  const mappedTitle = item?.title || item?.subject || item?.type || 'Notifikasi'
+  const mappedMessage = item?.message || item?.detail || item?.description || '-'
   return {
-    id: item?.id || item?.notification_id || item?._id,
-    title: item?.title || item?.subject || 'Notifikasi',
-    message: item?.message || '-',
-    time: item?.time || item?.created_at || '',
+    raw: item,
+    id: item?.id || item?.notification_id || item?.notificationId || item?._id,
+    title: mappedTitle,
+    message: mappedMessage,
+    time: item?.time || item?.created_at || item?.createdAt || '',
+    organization_id: item?.organization_id || item?.organizationId || item?.data?.organization_id || item?.meta?.organization_id || null,
+    is_invitation: !!(
+      (item?.type === 'invitation' ||
+       mappedMessage.toLowerCase().includes('undangan') ||
+       mappedTitle.toLowerCase().includes('undangan') ||
+       mappedTitle.toLowerCase().includes('invitation')) &&
+      !mappedTitle.toLowerCase().includes('diterima') &&
+      !mappedTitle.toLowerCase().includes('ditolak') &&
+      !mappedMessage.toLowerCase().includes('diterima') &&
+      !mappedMessage.toLowerCase().includes('ditolak')
+    ),
   }
 }
 
@@ -216,8 +234,10 @@ async function handleClearAll() {
 }
 
 function handleMarkAllRead() {
-  globalNotifications.value.forEach(n => notifSeenIds.value.add(n.id))
-  localStorage.setItem(notifSeenKey.value, JSON.stringify(Array.from(notifSeenIds.value)))
+  const updatedSet = new Set(notifReadIds.value)
+  globalNotifications.value.forEach(n => updatedSet.add(n.id))
+  notifReadIds.value = updatedSet
+  localStorage.setItem(notifReadKey.value, JSON.stringify(Array.from(notifReadIds.value)))
   alert('Semua notifikasi telah ditandai dibaca.')
 }
 
@@ -230,17 +250,111 @@ watch(activeTab, (newTab) => {
 watch(selectedDevice, loadEvents)
 onMounted(loadDevices)
 
+function findOrgIdRecursively(obj) {
+  if (!obj || typeof obj !== 'object') return null
+  
+  // Direct matches
+  const keys = ['organization_id', 'organizationId', 'org_id', 'orgId']
+  for (const k of keys) {
+    if (obj[k]) return String(obj[k])
+  }
+  
+  // Search recursively
+  for (const k in obj) {
+    let child = obj[k]
+    if (typeof child === 'string') {
+      try { child = JSON.parse(child) } catch(e) {}
+    }
+    if (typeof child === 'object' && child) {
+      const found = findOrgIdRecursively(child)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+function extractOrgId(notif) {
+  if (notif?.organization_id) return String(notif.organization_id)
+  
+  const raw = notif?.raw || {}
+  const found = findOrgIdRecursively(raw)
+  if (found) return found
+  
+  // Try extracting from 'type' string (e.g. "organization_member_invitation, id: 123-abc")
+  const typeStr = notif?.type || raw?.type || ''
+  const typeMatch = typeStr.match(/id:\s*([\w-]+)/i)
+  if (typeMatch) return typeMatch[1]
+  
+  // Fallback regex on message
+  const msgMatch = (notif?.message || '').match(/organization[_\s]?id[:\s]+([\w-]+)/i)
+  if (msgMatch) return msgMatch[1]
+  
+  return null
+}
+
+async function resolveOrgId(notif) {
+  // 1. Fast offline extraction
+  const offlineId = extractOrgId(notif)
+  if (offlineId) return offlineId
+
+  // 2. Fallback: extract name from message and query API
+  const msgMatch = (notif?.message || '').match(/organisasi:\s*(.*)/i)
+  if (msgMatch) {
+    const orgName = msgMatch[1].trim()
+    try {
+      const data = await getOrganizationsList()
+      const list = unwrapApiList(data)
+      const foundOrg = list.find(o => 
+        (o.name && o.name.toLowerCase() === orgName.toLowerCase()) || 
+        (o.nama && o.nama.toLowerCase() === orgName.toLowerCase())
+      )
+      if (foundOrg && (foundOrg.id || foundOrg.organization_id || foundOrg._id)) {
+        return String(foundOrg.id || foundOrg.organization_id || foundOrg._id)
+      }
+    } catch (e) {
+      console.warn('Failed to resolve organization from list:', e)
+    }
+  }
+  return null
+}
+
 async function handleAcceptInvite(notif) {
+  const invOrgId = await resolveOrgId(notif)
+  if (!invOrgId) {
+    alert('Tidak dapat menentukan organisasi dari notifikasi ini. Coba hubungi pengundang secara manual.')
+    return
+  }
   try {
+    await memberInvitationResponse(invOrgId, { is_accepted: true })
+    // Hapus dari backend
+    try { await deleteNotificationById(notif.id) } catch (e) {}
+    
+    // Hapus notifikasi dari list
+    globalNotifications.value = globalNotifications.value.filter(n => n.id !== notif.id)
     alert('Berhasil menerima undangan! Anda sekarang bergabung ke organisasi.')
-    // Di sini harusnya memanggil API memberInvitationResponse(orgId, { status: 'accept' })
   } catch (err) {
-    alert('Gagal menerima undangan.')
+    alert('Gagal menerima undangan: ' + (err?.message || 'Terjadi kesalahan.'))
   }
 }
 
 async function handleRejectInvite(notif) {
-  alert('Anda telah menolak undangan tersebut.')
+  if (!confirm('Apakah Anda yakin ingin menolak undangan ini?')) return
+  const invOrgId = await resolveOrgId(notif)
+  if (!invOrgId) {
+    alert('Tidak dapat menentukan organisasi dari notifikasi ini.')
+    return
+  }
+  try {
+    await memberInvitationResponse(invOrgId, { is_accepted: false })
+    // Hapus dari backend
+    try { await deleteNotificationById(notif.id) } catch (e) {}
+    
+    // Hapus notifikasi dari list
+    globalNotifications.value = globalNotifications.value.filter(n => n.id !== notif.id)
+    alert('Undangan telah ditolak.')
+  } catch (err) {
+    alert('Gagal menolak undangan: ' + (err?.message || 'Terjadi kesalahan.'))
+  }
 }
 </script>
 
@@ -349,15 +463,24 @@ async function handleRejectInvite(notif) {
         <div v-else-if="globalNotifications.length === 0" class="notif-empty">Belum ada notifikasi masuk.</div>
         <div v-else class="notif-list">
           <div v-for="n in globalNotifications" :key="n.id" class="notif-item">
-            <div class="notif-content" :class="{ 'is-read': notifSeenIds.has(n.id) }">
+            <div class="notif-content" :class="{ 'is-read': notifReadIds.has(n.id) }">
               <div class="notif-title">{{ n.title }}</div>
               <div class="notif-message">{{ n.message }}</div>
               <div class="notif-time">{{ n.time }}</div>
               
               <!-- Tombol Aksi Undangan -->
-              <div v-if="n.message.toLowerCase().includes('undangan')" class="invite-actions">
-                <button class="btn-success btn-sm" @click="handleAcceptInvite(n)">Terima</button>
-                <button class="btn-danger btn-sm" @click="handleRejectInvite(n)">Tolak</button>
+              <div v-if="n.is_invitation" class="invite-actions">
+                <button class="notif-invite-btn accept-icon" @click="handleAcceptInvite(n)" title="Terima Undangan">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </button>
+                <button class="notif-invite-btn reject-icon" @click="handleRejectInvite(n)" title="Tolak Undangan">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
               </div>
             </div>
             <button class="delete-btn" @click="handleDeleteGlobalNotif(n.id)" title="Hapus Notifikasi">
@@ -386,24 +509,36 @@ async function handleRejectInvite(notif) {
 }
 .invite-actions {
   display: flex;
-  gap: 8px;
+  gap: 16px;
   margin-top: 8px;
+  justify-content: flex-end;
 }
-.btn-success {
-  background: var(--color-success);
-  color: white;
+
+.notif-invite-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
   border: none;
-  border-radius: var(--radius-sm);
+  background: transparent;
+  border-radius: 50%;
   cursor: pointer;
-  font-weight: 600;
+  transition: var(--transition);
 }
-.btn-danger {
-  background: var(--color-danger);
-  color: white;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-weight: 600;
+
+.notif-invite-btn.accept-icon {
+  color: var(--color-success);
+}
+.notif-invite-btn.accept-icon:hover {
+  background: #def7ec;
+}
+
+.notif-invite-btn.reject-icon {
+  color: var(--color-danger);
+}
+.notif-invite-btn.reject-icon:hover {
+  background: #fde8e8;
 }
 .btn-sm {
   padding: 4px 12px;
